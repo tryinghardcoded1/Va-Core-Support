@@ -453,7 +453,12 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
               </div>
             ) : (
               <div className="pt-4 flex flex-col gap-2">
-                <Link to="/dashboard" className="text-center py-2 bg-zinc-100 rounded-lg font-medium">Dashboard</Link>
+                <Link 
+                  to={user.role === 'admin' ? '/admin' : user.role === 'employer' ? '/employer' : '/va'}
+                  className="text-center py-2 bg-zinc-100 rounded-lg font-medium"
+                >
+                  Dashboard
+                </Link>
                 <button onClick={onLogout} className="text-center py-2 text-red-600 font-medium">Log out</button>
               </div>
             )}
