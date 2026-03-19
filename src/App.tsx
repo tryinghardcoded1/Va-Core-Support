@@ -659,6 +659,37 @@ const LandingPage = ({ user }: { user: UserData | null }) => {
         </div>
       </section>
 
+      {/* About Us Section */}
+      <section className="py-20 bg-zinc-50 border-y border-zinc-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <h2 className="text-3xl font-black text-zinc-900 mb-6 tracking-tight">About HIRE A VA</h2>
+              <div className="prose prose-lg text-zinc-600">
+                <p className="mb-4">
+                  Originally founded as <strong>VA CORE SUPPORT</strong> by <strong>Joshua Bernstein</strong> from San Francisco, our mission has always been to connect incredible talent with businesses that need them.
+                </p>
+                <p>
+                  We believe in empowering entrepreneurs and business owners by providing top-tier virtual assistants who can handle the day-to-day operations, allowing you to focus on what truly matters: growing your business.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <div className="aspect-[9/16] w-full max-w-sm bg-zinc-100 rounded-2xl overflow-hidden shadow-xl border border-zinc-200 relative">
+                <iframe 
+                  className="absolute inset-0 w-full h-full"
+                  src="https://www.youtube.com/embed/NK7wBwqqZto" 
+                  title="YouTube video player" 
+                  frameBorder="0" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Common Talent Searches */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
