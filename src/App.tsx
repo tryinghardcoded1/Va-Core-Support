@@ -24,7 +24,9 @@ import {
   Calendar,
   Send,
   Star,
-  Check
+  Check,
+  ExternalLink,
+  Zap
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -32,13 +34,15 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { supabase } from './supabaseClient';
 import AdminLayout from './pages/admin/AdminLayout';
+import AdminLogin from './pages/admin/AdminLogin';
+import AboutUs from './pages/AboutUs';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
 // --- Types ---
-type UserRole = 'admin' | 'employer' | 'va';
+type UserRole = 'admin' | 'employer' | 'worker';
 interface UserData {
   id: string;
   name: string;
@@ -63,22 +67,24 @@ const ApplyModal = ({ job, user, onClose }: { job: any, user: UserData | null, o
       navigate('/login');
       return;
     }
-    if (user.role !== 'va') {
+    if (user.role !== 'worker') {
       alert('Only Virtual Assistants can apply for jobs.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const { error } = await supabase
-        .from('applications')
-        .insert({
+      const response = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           job_id: job.id,
           va_id: user.id,
           cover_letter: coverLetter
-        });
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to submit application');
 
       setSuccess(true);
       setTimeout(onClose, 2000);
@@ -156,6 +162,9 @@ const JobDetailsPage = ({ user }: { user: UserData | null }) => {
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showApplyModal, setShowApplyModal] = useState(false);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageSent, setMessageSent] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -176,6 +185,40 @@ const JobDetailsPage = ({ user }: { user: UserData | null }) => {
 
     fetchJob();
   }, [id]);
+
+  const handleSendMessage = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!messageText.trim()) return;
+
+    setSendingMessage(true);
+    try {
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender_id: user.id,
+          receiver_id: job.employer_id,
+          message_body: messageText
+        })
+      });
+      
+      if (response.ok) {
+        setMessageSent(true);
+        setMessageText('');
+        setTimeout(() => setMessageSent(false), 3000);
+      } else {
+        alert('Failed to send message');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error sending message');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   if (loading) return (
     <div className="max-w-4xl mx-auto px-4 py-20">
@@ -270,10 +313,30 @@ const JobDetailsPage = ({ user }: { user: UserData | null }) => {
             <p className="text-teal-50 mb-8 text-sm leading-relaxed">Submit your application today and get a chance to work with {job.company_name}.</p>
             <button 
               onClick={() => setShowApplyModal(true)}
-              className="w-full bg-white text-teal-600 py-4 rounded-2xl font-bold hover:bg-teal-50 transition-all shadow-lg"
+              className="w-full bg-white text-teal-600 py-4 rounded-2xl font-bold hover:bg-teal-50 transition-all shadow-lg mb-4"
             >
               Apply Now
             </button>
+            
+            {user?.role === 'worker' && (
+              <div className="mt-6 pt-6 border-t border-teal-500">
+                <h4 className="font-bold mb-3 text-sm">Have a question?</h4>
+                <textarea 
+                  value={messageText}
+                  onChange={e => setMessageText(e.target.value)}
+                  placeholder="Message the employer..."
+                  className="w-full p-3 rounded-xl text-zinc-900 text-sm mb-3 resize-none h-24 outline-none focus:ring-2 focus:ring-teal-300"
+                />
+                <button 
+                  onClick={handleSendMessage}
+                  disabled={sendingMessage || !messageText.trim()}
+                  className="w-full bg-teal-800 text-white py-3 rounded-xl font-bold hover:bg-teal-900 transition-all disabled:opacity-50 text-sm"
+                >
+                  {sendingMessage ? 'Sending...' : messageSent ? 'Message Sent!' : 'Send Message'}
+                </button>
+              </div>
+            )}
+            
             <p className="mt-4 text-[10px] text-center text-teal-200 uppercase font-bold tracking-widest">Usually responds in 24 hours</p>
           </div>
 
@@ -304,7 +367,7 @@ const RealReviewsPage = () => {
   const reviews = [
     {
       stars: 5,
-      text: '"Before VA Core Support, I was drowning in customer service emails and order fulfillment issues. Finding my VA, Maria, changed everything. She handles the day-to-day operations flawlessly, allowing me to focus on product development. We\'ve doubled our revenue in 6 months."',
+      text: '"Before HIRE A VA, I was drowning in customer service emails and order fulfillment issues. Finding my VA, Maria, changed everything. She handles the day-to-day operations flawlessly, allowing me to focus on product development. We\'ve doubled our revenue in 6 months."',
       name: "Sarah Jenkins",
       role: "E-commerce Founder"
     },
@@ -322,7 +385,7 @@ const RealReviewsPage = () => {
     },
     {
       stars: 5,
-      text: '"We needed specialized developers but couldn\'t afford local rates. Through VA Core Support, we found two senior React developers who have been instrumental in launching our MVP ahead of schedule. The expertise is excellent despite the timezone difference."',
+      text: '"We needed specialized developers but couldn\'t afford local rates. Through HIRE A VA, we found two senior React developers who have been instrumental in launching our MVP ahead of schedule. The expertise is excellent despite the timezone difference."',
       name: "Marcus Johnson",
       role: "Tech Startup CEO"
     },
@@ -386,16 +449,17 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
             <Link to="/" className="flex items-center gap-2">
               <img 
                 src="https://static.wixstatic.com/media/225ce0_770c0e789f0348bda3ee004f32a8fb0c~mv2.png/v1/crop/x_244,y_190,w_518,h_479/fill/w_108,h_100,fp_0.50_0.50,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Untitled%20design.png" 
-                alt="Va Core Support Logo" 
+                alt="HIRE A VA Logo" 
                 className="w-10 h-10 object-contain"
                 referrerPolicy="no-referrer"
               />
-              <span className="text-xl font-bold text-zinc-900 tracking-tight">Va Core Support</span>
+              <span className="text-xl font-bold text-zinc-900 tracking-tight">HIRE A VA</span>
             </Link>
           </div>
 
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6">
+            <Link to="/about" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">About</Link>
             <Link to="/jobs" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Find Jobs</Link>
             <Link to="/real-reviews" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Real Reviews</Link>
             <Link to="/pricing" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Pricing</Link>
@@ -443,6 +507,7 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
             exit={{ opacity: 0, y: -10 }}
             className="md:hidden bg-white border-b border-zinc-200 px-4 pt-2 pb-6 space-y-1"
           >
+            <Link to="/about" className="block px-3 py-2 text-base font-medium text-zinc-600">About</Link>
             <Link to="/jobs" className="block px-3 py-2 text-base font-medium text-zinc-600">Find Jobs</Link>
             <Link to="/real-reviews" className="block px-3 py-2 text-base font-medium text-zinc-600">Real Reviews</Link>
             <Link to="/pricing" className="block px-3 py-2 text-base font-medium text-zinc-600">Pricing</Link>
@@ -472,6 +537,9 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
 const LandingPage = ({ user }: { user: UserData | null }) => {
   const [featuredJobs, setFeaturedJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [talentSearchQuery, setTalentSearchQuery] = useState('');
+  const [jobSearchQuery, setJobSearchQuery] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchFeatured = async () => {
@@ -557,31 +625,35 @@ const LandingPage = ({ user }: { user: UserData | null }) => {
           <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
             <div className="text-left">
               <h3 className="text-lg font-bold text-zinc-900 mb-4">Looking for <span className="text-teal-600">Talent?</span></h3>
-              <div className="relative">
+              <form onSubmit={(e) => { e.preventDefault(); navigate(`/talents?q=${encodeURIComponent(talentSearchQuery)}`); }} className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input 
                   type="text" 
+                  value={talentSearchQuery}
+                  onChange={e => setTalentSearchQuery(e.target.value)}
                   placeholder="Search Resumes" 
                   className="w-full pl-12 pr-24 py-4 bg-white border border-zinc-200 rounded-full outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-zinc-900 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-zinc-800 transition-all">
+                <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 bg-zinc-900 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-zinc-800 transition-all">
                   SEARCH
                 </button>
-              </div>
+              </form>
             </div>
             <div className="text-left">
               <h3 className="text-lg font-bold text-zinc-900 mb-4">Looking for <span className="text-teal-600">Work?</span></h3>
-              <div className="relative">
+              <form onSubmit={(e) => { e.preventDefault(); navigate(`/jobs?q=${encodeURIComponent(jobSearchQuery)}`); }} className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
                 <input 
                   type="text" 
+                  value={jobSearchQuery}
+                  onChange={e => setJobSearchQuery(e.target.value)}
                   placeholder="Search Jobs" 
                   className="w-full pl-12 pr-24 py-4 bg-white border border-zinc-200 rounded-full outline-none focus:ring-2 focus:ring-teal-500 shadow-sm"
                 />
-                <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-zinc-900 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-zinc-800 transition-all">
+                <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 bg-zinc-900 text-white px-6 py-2 rounded-full font-bold text-sm hover:bg-zinc-800 transition-all">
                   SEARCH
                 </button>
-              </div>
+              </form>
             </div>
           </div>
         </div>
@@ -728,23 +800,36 @@ const LoginPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
     setLoading(true);
     setError('');
     setSuccessMessage('');
-    console.log('Mock Login attempt', { email });
     
-    // MOCK LOGIN BYPASS
-    setTimeout(() => {
-      const mockUser: UserData = {
-        id: 'mock-user-id',
-        name: email.split('@')[0] || 'User',
-        email: email,
-        role: email.includes('admin') ? 'admin' : email.includes('emp') ? 'employer' : 'va',
-        status: 'approved'
-      };
-      
-      localStorage.setItem('mock_user', JSON.stringify(mockUser));
-      onLogin(mockUser);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (signInError) throw signInError;
+
+      if (data.user) {
+        // Fetch profile to get role for redirection
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+          
+        const userRole = profile?.role || data.user.user_metadata?.role || 'worker';
+        const dashboardPath = userRole === 'admin' ? '/admin' : userRole === 'employer' ? '/employer' : '/va';
+        navigate(dashboardPath);
+      }
+    } catch (err: any) {
+      console.error('Login error:', err);
+      if (err.message === 'Failed to fetch') {
+        setError('Network error. Please check if VITE_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL are correctly set in the environment.');
+      } else {
+        setError(err.message || 'Invalid login credentials');
+      }
       setLoading(false);
-      navigate('/');
-    }, 1000);
+    }
   };
 
   return (
@@ -756,7 +841,7 @@ const LoginPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
       >
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-zinc-900">Welcome Back</h1>
-          <p className="text-zinc-500">Log in to your Va Core Support account</p>
+          <p className="text-zinc-500">Log in to your HIRE A VA account</p>
         </div>
         
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
@@ -802,10 +887,11 @@ const LoginPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
 };
 
 const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('va');
+  const [role, setRole] = useState<'worker' | 'employer'>('worker');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [creationStep, setCreationStep] = useState(0);
@@ -833,26 +919,34 @@ const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
     setLoading(true);
     setError('');
     
-    console.log('Mock Register attempt', { email, role });
-    
-    // MOCK REGISTER BYPASS
-    setTimeout(() => {
-      const mockUser: UserData = {
-        id: 'mock-user-' + Math.random().toString(36).substr(2, 9),
-        name: name,
-        email: email,
-        role: role,
-        status: 'approved'
-      };
-      
-      localStorage.setItem('mock_user', JSON.stringify(mockUser));
-      onLogin(mockUser);
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: firstName,
+            last_name: lastName,
+            role: role
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        // Redirect to login with success message
+        navigate('/login', { state: { email, signupSuccess: true } });
+      }
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      if (err.message === 'Failed to fetch') {
+        setError('Network error. Please check if VITE_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL are correctly set in the environment.');
+      } else {
+        setError(err.message || 'Failed to create account');
+      }
       setLoading(false);
-      
-      // Redirect to appropriate dashboard
-      const dashboardPath = role === 'admin' ? '/admin' : role === 'employer' ? '/employer' : '/va';
-      navigate(dashboardPath);
-    }, 2000);
+    }
   };
 
   if (loading) {
@@ -898,7 +992,7 @@ const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
       >
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-zinc-900">Create Account</h1>
-          <p className="text-zinc-500">Join the Va Core Support community today</p>
+          <p className="text-zinc-500">Join the HIRE A VA community today</p>
         </div>
         
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4">{error}</div>}
@@ -907,14 +1001,14 @@ const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
           <div className="grid grid-cols-2 gap-3 mb-4">
             <button 
               type="button"
-              onClick={() => setRole('va')}
+              onClick={() => setRole('worker')}
               className={cn(
                 "py-3 rounded-xl border-2 font-bold transition-all flex flex-col items-center gap-1",
-                role === 'va' ? "border-indigo-600 bg-indigo-50 text-indigo-600" : "border-zinc-100 text-zinc-500 hover:border-zinc-200"
+                role === 'worker' ? "border-indigo-600 bg-indigo-50 text-indigo-600" : "border-zinc-100 text-zinc-500 hover:border-zinc-200"
               )}
             >
               <User className="w-5 h-5" />
-              <span className="text-xs">I'm a VA</span>
+              <span className="text-xs">I'm a Worker</span>
             </button>
             <button 
               type="button"
@@ -929,16 +1023,29 @@ const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
             </button>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1">Full Name</label>
-            <input 
-              type="text" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              placeholder="John Doe"
-              required
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">First Name</label>
+              <input 
+                type="text" 
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full px-4 py-2 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="John"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Last Name</label>
+              <input 
+                type="text" 
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full px-4 py-2 border border-zinc-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                placeholder="Doe"
+                required
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-zinc-700 mb-1">Email Address</label>
@@ -984,45 +1091,50 @@ const RegisterPage = ({ onLogin }: { onLogin: (user: UserData) => void }) => {
 // Moved to src/pages/admin/AdminLayout.tsx
 
 const EmployerDashboard = ({ user }: { user: UserData }) => {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [employerProfile, setEmployerProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [showPostModal, setShowPostModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'jobs' | 'applications' | 'profile'>('jobs');
+
+  // Employer Profile Form States
+  const [companyName, setCompanyName] = useState('');
+  const [website, setWebsite] = useState('');
+  const [industry, setIndustry] = useState('');
+  const [companyDescription, setCompanyDescription] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // Form states for job posting
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [salaryMin, setSalaryMin] = useState('');
   const [salaryMax, setSalaryMax] = useState('');
-  const [applications, setApplications] = useState<any[]>([]);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [expiryDate, setExpiryDate] = useState('');
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      // Fetch applications for jobs owned by this employer
-      const { data: apps, error: appsError } = await supabase
-        .from('applications')
-        .select(`
-          *,
-          jobs!inner(title, employer_id),
-          profiles:va_id(full_name)
-        `)
-        .eq('jobs.employer_id', user.id);
+      const [jobsRes, appsRes, profileRes] = await Promise.all([
+        fetch(`/api/employer/jobs/${user.id}`).then(r => r.json()),
+        fetch(`/api/employer/applications/${user.id}`).then(r => r.json()),
+        fetch(`/api/employer/profile/${user.id}`).then(r => r.json())
+      ]);
 
-      if (appsError) throw appsError;
-
-      // Fetch subscription from employer_profiles
-      const { data: employerProfile, error: subError } = await supabase
-        .from('employer_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (subError && subError.code !== 'PGRST116') throw subError;
-
-      setApplications((apps || []).map(a => ({
-        ...a,
-        job_title: a.jobs?.title,
-        va_name: a.profiles?.full_name || 'VA User'
-      })));
-      setSubscription(employerProfile);
+      setJobs(jobsRes || []);
+      setApplications(appsRes || []);
+      setEmployerProfile(profileRes);
+      setSubscription(profileRes); 
+      
+      if (profileRes) {
+        setCompanyName(profileRes.company_name || user.name);
+        setWebsite(profileRes.website || '');
+        setIndustry(profileRes.industry || '');
+        setCompanyDescription(profileRes.company_description || '');
+        setLogoUrl(profileRes.logo_url || '');
+      }
     } catch (err) {
       console.error('Error fetching employer data:', err);
     } finally {
@@ -1037,22 +1149,25 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
   const handlePostJob = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const { error } = await supabase
-        .from('jobs')
-        .insert({
+      const response = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           employer_id: user.id,
           title,
-          company_name: user.name, // Using user's name as company name for now
           description,
           salary_min: Number(salaryMin),
           salary_max: Number(salaryMax),
           job_type: 'Full-time',
-          status: 'pending'
-        });
+          experience_level: 'Intermediate',
+          expiry_date: expiryDate
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to post job');
 
       setShowPostModal(false);
+      setTitle(''); setDescription(''); setSalaryMin(''); setSalaryMax(''); setExpiryDate('');
       alert('Job posted! Awaiting admin approval.');
       fetchData();
     } catch (err) {
@@ -1061,14 +1176,42 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
     }
   };
 
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingProfile(true);
+    try {
+      const response = await fetch('/api/employer/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: user.id,
+          company_name: companyName,
+          website,
+          industry,
+          company_description: companyDescription,
+          logo_url: logoUrl
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to update profile');
+      
+      alert('Profile updated successfully!');
+      fetchData();
+    } catch (err) {
+      console.error('Error updating employer profile:', err);
+      alert('Failed to update profile');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const handleHire = async (appId: string) => {
     try {
-      const { error } = await supabase
-        .from('applications')
-        .update({ status: 'hired' })
-        .eq('id', appId);
-
-      if (error) throw error;
+      await fetch('/api/hire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ application_id: appId })
+      });
       fetchData();
     } catch (err) {
       console.error('Error hiring:', err);
@@ -1077,12 +1220,11 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
 
   const handleUnhire = async (appId: string) => {
     try {
-      const { error } = await supabase
-        .from('applications')
-        .update({ status: 'pending' })
-        .eq('id', appId);
-
-      if (error) throw error;
+      await fetch('/api/unhire', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ application_id: appId })
+      });
       fetchData();
     } catch (err) {
       console.error('Error unhiring:', err);
@@ -1091,161 +1233,297 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-zinc-900">Employer Dashboard</h1>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-zinc-900">Employer Dashboard</h1>
+          <p className="text-zinc-500">Manage your jobs, applications, and company profile.</p>
+        </div>
         <div className="flex gap-3">
           <Link to="/talents" className="bg-white text-zinc-900 border border-zinc-200 px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-zinc-50 transition-all">
-            <Search className="w-5 h-5" />
-            Browse VAs
+            <Search className="w-5 h-5" /> Browse VAs
           </Link>
           <button 
             onClick={() => setShowPostModal(true)}
             className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 shadow-lg shadow-indigo-100"
           >
-            <Plus className="w-5 h-5" />
-            Post New Job
+            <Plus className="w-5 h-5" /> Post New Job
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-            <h2 className="text-xl font-bold text-zinc-900 mb-6">Recent Applicants</h2>
-            {loading ? (
-              <div className="animate-pulse space-y-4">
-                {[1, 2].map(i => <div key={i} className="h-20 bg-zinc-50 rounded-xl" />)}
+      <div className="flex bg-white p-1 rounded-xl border border-zinc-200 mb-8 w-fit">
+        {['jobs', 'applications', 'profile'].map((tab) => (
+          <button 
+            key={tab}
+            onClick={() => setActiveTab(tab as any)}
+            className={cn(
+              "px-6 py-2 rounded-lg text-sm font-bold transition-all capitalize",
+              activeTab === tab ? "bg-indigo-600 text-white shadow-md" : "text-zinc-500 hover:text-zinc-900"
+            )}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2">
+          {activeTab === 'jobs' && (
+            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-zinc-900">Your Job Postings</h2>
+                <span className="text-xs font-bold text-zinc-400">{jobs.length} Total</span>
               </div>
-            ) : applications.length === 0 ? (
-              <div className="text-center py-12 text-zinc-500">
-                No applicants yet. Post a job to start receiving applications.
-              </div>
-            ) : (
               <div className="divide-y divide-zinc-100">
-                {applications.map((app) => (
-                  <div key={app.id} className="py-4 flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-zinc-900">{app.va_name}</div>
-                      <div className="text-xs text-zinc-500">Applied for: {app.job_title}</div>
-                      <div className="mt-1">
+                {loading ? (
+                  <div className="p-12 text-center animate-pulse space-y-4">
+                    {[1, 2, 3].map(i => <div key={i} className="h-16 bg-zinc-50 rounded-xl" />)}
+                  </div>
+                ) : jobs.length === 0 ? (
+                  <div className="p-12 text-center text-zinc-500">You haven't posted any jobs yet.</div>
+                ) : (
+                  jobs.map(job => (
+                    <div key={job.id} className="p-6 hover:bg-zinc-50 transition-colors flex items-center justify-between">
+                      <div>
+                        <h3 className="font-bold text-zinc-900 mb-1">{job.title}</h3>
+                        <div className="flex items-center gap-4 text-xs text-zinc-500">
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {job.application_count} applications</span>
+                          <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> Posted {new Date(job.created_at).toLocaleDateString()}</span>
+                          {job.expiry_date && (
+                            <span className="flex items-center gap-1 text-red-500 font-bold">
+                              <Clock className="w-3 h-3" /> Expires {new Date(job.expiry_date).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
                         <span className={cn(
-                          "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
-                          app.status === 'hired' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                          "text-[10px] font-bold uppercase px-2 py-1 rounded",
+                          job.status === 'approved' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
                         )}>
-                          {app.status}
+                          {job.status}
                         </span>
+                        <Link to={`/jobs/${job.id}`} className="p-2 text-zinc-400 hover:text-indigo-600 transition-colors">
+                          <ExternalLink className="w-5 h-5" />
+                        </Link>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      {app.status === 'hired' ? (
-                        <button onClick={() => handleUnhire(app.id)} className="text-xs font-bold text-red-600 hover:underline">Unhire</button>
-                      ) : (
-                        <button onClick={() => handleHire(app.id)} className="text-xs font-bold text-emerald-600 hover:underline">Hire Now</button>
-                      )}
-                      <Link to={`/messages/${app.va_id}`} className="text-xs font-bold text-indigo-600 hover:underline">Message</Link>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'applications' && (
+            <div className="bg-white rounded-2xl border border-zinc-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-zinc-900">Recent Applications</h2>
+                <span className="text-xs font-bold text-zinc-400">{applications.length} Total</span>
+              </div>
+              <div className="divide-y divide-zinc-100">
+                {applications.length === 0 ? (
+                  <div className="p-12 text-center text-zinc-500">No applications received yet.</div>
+                ) : (
+                  applications.map((app) => (
+                    <div key={app.id} className="p-6 flex items-center justify-between hover:bg-zinc-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center font-bold text-zinc-400">
+                          {app.va_name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="font-bold text-zinc-900">{app.va_name}</div>
+                          <div className="text-xs text-zinc-500">Applied for: <span className="font-medium text-zinc-700">{app.job_title}</span></div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={cn(
+                              "text-[10px] font-bold uppercase px-2 py-0.5 rounded",
+                              app.status === 'hired' ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
+                            )}>{app.status}</span>
+                            <span className="text-[10px] text-zinc-400">{new Date(app.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {app.status === 'hired' ? (
+                          <button onClick={() => handleUnhire(app.id)} className="px-3 py-1.5 text-xs font-bold text-red-600 border border-red-100 rounded-lg hover:bg-red-50">Unhire</button>
+                        ) : (
+                          <button onClick={() => handleHire(app.id)} className="px-3 py-1.5 text-xs font-bold text-emerald-600 border border-emerald-100 rounded-lg hover:bg-emerald-50">Hire Now</button>
+                        )}
+                        <Link to={`/messages/${app.va_id}`} className="px-3 py-1.5 text-xs font-bold text-indigo-600 border border-indigo-100 rounded-lg hover:bg-indigo-50">Message</Link>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'profile' && (
+            <div className="bg-white p-8 rounded-2xl border border-zinc-200 shadow-sm">
+              <h2 className="text-xl font-bold text-zinc-900 mb-6">Company Profile Information</h2>
+              <form onSubmit={handleUpdateProfile} className="space-y-6">
+                <div className="flex items-center gap-6">
+                  <div className="w-24 h-24 bg-zinc-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-zinc-200 overflow-hidden relative group">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                    ) : (
+                      <Plus className="w-8 h-8 text-zinc-300" />
+                    )}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button type="button" onClick={() => {
+                        const url = prompt('Enter logo URL:', logoUrl);
+                        if (url !== null) setLogoUrl(url);
+                      }} className="text-white text-xs font-bold">Change</button>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <div>
+                    <h3 className="font-bold text-zinc-900">{companyName}</h3>
+                    <p className="text-sm text-zinc-500">{industry || 'Industry not set'}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Company Name</label>
+                    <input 
+                      type="text" 
+                      value={companyName} 
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Website</label>
+                    <input 
+                      type="text" 
+                      value={website} 
+                      onChange={(e) => setWebsite(e.target.value)}
+                      placeholder="https://example.com" 
+                      className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Industry</label>
+                    <input 
+                      type="text" 
+                      value={industry} 
+                      onChange={(e) => setIndustry(e.target.value)}
+                      placeholder="e.g. Technology, Healthcare" 
+                      className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Logo URL</label>
+                    <input 
+                      type="text" 
+                      value={logoUrl} 
+                      onChange={(e) => setLogoUrl(e.target.value)}
+                      placeholder="https://example.com/logo.png" 
+                      className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" 
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-2">Company Description</label>
+                    <textarea 
+                      value={companyDescription} 
+                      onChange={(e) => setCompanyDescription(e.target.value)}
+                      className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 h-32 resize-none" 
+                      placeholder="Tell VAs about your company..." 
+                    />
+                  </div>
+                </div>
+                <button 
+                  type="submit"
+                  disabled={savingProfile}
+                  className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                >
+                  {savingProfile ? 'Saving...' : 'Save Profile Changes'}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
         
         <div className="space-y-6">
           <div className="bg-indigo-600 p-6 rounded-2xl text-white shadow-xl shadow-indigo-100">
-            <h3 className="text-lg font-bold mb-2">Current Plan: {subscription?.plan_name || 'Free'}</h3>
-            <p className="text-indigo-100 text-sm mb-6">
-              {!subscription || subscription.plan_name === 'Free' 
-                ? 'Upgrade to post more jobs and contact more VAs.' 
-                : `Your plan expires on ${subscription.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'N/A'}`}
-            </p>
-            <Link to="/pricing" className="block w-full text-center bg-white text-indigo-600 py-2 rounded-lg font-bold hover:bg-indigo-50 transition-all">
-              {subscription?.plan_name === 'Free' ? 'Upgrade Plan' : 'Manage Subscription'}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Subscription</h3>
+              <ShieldCheck className="w-6 h-6 opacity-50" />
+            </div>
+            <div className="mb-6">
+              <div className="text-3xl font-black mb-1">{subscription?.plan_name?.toUpperCase() || 'FREE'}</div>
+              <p className="text-indigo-100 text-xs">
+                {!subscription || subscription.plan_name === 'Free' ? 'Upgrade to unlock more features.' : `Renews on ${subscription.current_period_end ? new Date(subscription.current_period_end).toLocaleDateString() : 'N/A'}`}
+              </p>
+            </div>
+            <Link to="/pricing" className="block w-full text-center bg-white text-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all shadow-lg">
+              {subscription?.plan_name === 'Free' ? 'Upgrade Plan' : 'Manage Plan'}
             </Link>
           </div>
-          
           <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
-            <h3 className="font-bold text-zinc-900 mb-4">Quick Links</h3>
-            <div className="space-y-3">
-              <button className="w-full text-left text-sm text-zinc-600 hover:text-indigo-600 flex items-center gap-2">
-                <User className="w-4 h-4" /> Company Profile
-              </button>
-              <button className="w-full text-left text-sm text-zinc-600 hover:text-indigo-600 flex items-center gap-2">
-                <Settings className="w-4 h-4" /> Billing Settings
-              </button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center overflow-hidden">
+                {logoUrl ? <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" /> : <Briefcase className="w-5 h-5 text-zinc-400" />}
+              </div>
+              <div>
+                <h3 className="font-bold text-zinc-900 text-sm">{companyName}</h3>
+                <p className="text-[10px] text-zinc-500">{industry || 'Industry not set'}</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setActiveTab('profile')}
+              className="w-full text-center text-xs font-bold text-indigo-600 hover:underline"
+            >
+              Edit Company Profile
+            </button>
+          </div>
+          <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
+            <h3 className="font-bold text-zinc-900 mb-4 flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Quick Stats</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-zinc-50 rounded-xl">
+                <div className="text-2xl font-black text-zinc-900">{jobs.length}</div>
+                <div className="text-[10px] font-bold text-zinc-400 uppercase">Jobs Posted</div>
+              </div>
+              <div className="p-3 bg-zinc-50 rounded-xl">
+                <div className="text-2xl font-black text-zinc-900">{applications.length}</div>
+                <div className="text-[10px] font-bold text-zinc-400 uppercase">Total Apps</div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Post Job Modal */}
       <AnimatePresence>
         {showPostModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowPostModal(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl relative z-10 overflow-hidden"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPostModal(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl relative z-10 overflow-hidden">
               <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-zinc-900">Post a New Job</h2>
-                <button onClick={() => setShowPostModal(false)} className="text-zinc-400 hover:text-zinc-600"><X /></button>
+                <button onClick={() => setShowPostModal(false)} className="text-zinc-400 hover:text-zinc-600 p-2"><X /></button>
               </div>
               <form onSubmit={handlePostJob} className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Job Title</label>
-                  <input 
-                    type="text" 
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-4 py-2 border border-zinc-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholder="e.g. Executive Virtual Assistant"
-                    required
-                  />
+                  <label className="block text-sm font-bold text-zinc-700 mb-1">Job Title</label>
+                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Executive Virtual Assistant" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 mb-1">Description</label>
-                  <textarea 
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-4 py-2 border border-zinc-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 h-32"
-                    placeholder="Describe the role and responsibilities..."
-                    required
-                  />
+                  <label className="block text-sm font-bold text-zinc-700 mb-1">Description</label>
+                  <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 h-32 resize-none" placeholder="Describe the role and responsibilities..." required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Min Salary ($/mo)</label>
-                    <input 
-                      type="number" 
-                      value={salaryMin}
-                      onChange={(e) => setSalaryMin(e.target.value)}
-                      className="w-full px-4 py-2 border border-zinc-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="500"
-                    />
+                    <label className="block text-sm font-bold text-zinc-700 mb-1">Min Salary ($/mo)</label>
+                    <input type="number" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" placeholder="500" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 mb-1">Max Salary ($/mo)</label>
-                    <input 
-                      type="number" 
-                      value={salaryMax}
-                      onChange={(e) => setSalaryMax(e.target.value)}
-                      className="w-full px-4 py-2 border border-zinc-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholder="1500"
-                    />
+                    <label className="block text-sm font-bold text-zinc-700 mb-1">Max Salary ($/mo)</label>
+                    <input type="number" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" placeholder="1500" />
                   </div>
                 </div>
-                <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">
-                  Publish Job Listing
-                </button>
+                <div>
+                  <label className="block text-sm font-bold text-zinc-700 mb-1">Expiry Date (Optional)</label>
+                  <input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 mt-4">Publish Job Listing</button>
               </form>
             </motion.div>
           </div>
@@ -1259,30 +1537,26 @@ const VADashboard = ({ user }: { user: UserData }) => {
   const [jobs, setJobs] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'jobs' | 'profile' | 'messages'>('jobs');
+  const [activeTab, setActiveTab] = useState<'jobs' | 'profile' | 'messages' | 'payment'>('jobs');
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [jobsRes, profileRes] = await Promise.all([
-        supabase
-          .from('jobs')
-          .select('*')
-          .eq('status', 'approved')
-          .order('created_at', { ascending: false })
-          .limit(5),
-        supabase
-          .from('va_profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single()
+        fetch('/api/jobs'),
+        fetch(`/api/va/profile/${user.id}`)
       ]);
 
-      if (jobsRes.error) throw jobsRes.error;
-      if (profileRes.error && profileRes.error.code !== 'PGRST116') throw profileRes.error;
+      if (!jobsRes.ok) throw new Error('Failed to fetch jobs');
+      const jobsData = await jobsRes.json();
+      
+      let profileData = null;
+      if (profileRes.ok) {
+        profileData = await profileRes.json();
+      }
 
-      setJobs(jobsRes.data || []);
-      setProfile(profileRes.data);
+      setJobs(jobsData.slice(0, 5) || []);
+      setProfile(profileData);
     } catch (err) {
       console.error('Error fetching VA data:', err);
     } finally {
@@ -1293,6 +1567,21 @@ const VADashboard = ({ user }: { user: UserData }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const calculateCompleteness = (prof: any) => {
+    if (!prof) return 0;
+    let score = 0;
+    if (prof.headline) score += 15;
+    if (prof.bio) score += 15;
+    if (prof.skills && prof.skills.length > 0) score += 20;
+    if (prof.portfolio_url) score += 15;
+    if (prof.availability) score += 15;
+    if (prof.hourly_rate) score += 10;
+    if (prof.monthly_salary) score += 10;
+    return Math.min(100, score);
+  };
+
+  const completeness = calculateCompleteness(profile);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -1316,6 +1605,12 @@ const VADashboard = ({ user }: { user: UserData }) => {
             className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", activeTab === 'messages' ? "bg-teal-600 text-white" : "text-zinc-500 hover:text-zinc-900")}
           >
             Messages
+          </button>
+          <button 
+            onClick={() => setActiveTab('payment')}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", activeTab === 'payment' ? "bg-teal-600 text-white" : "text-zinc-500 hover:text-zinc-900")}
+          >
+            Payment
           </button>
         </div>
       </div>
@@ -1341,9 +1636,17 @@ const VADashboard = ({ user }: { user: UserData }) => {
                         <h3 className="text-lg font-bold text-zinc-900 group-hover:text-indigo-600 transition-colors">{job.title}</h3>
                         <p className="text-sm text-zinc-500 font-medium">{job.company_name}</p>
                       </div>
-                      {job.is_featured ? (
-                        <span className="bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded">Featured</span>
-                      ) : null}
+                      <div className="flex flex-col items-end gap-2">
+                        {job.is_featured ? (
+                          <span className="bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded">Featured</span>
+                        ) : null}
+                        {job.expiry_date && (
+                          <span className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {Math.ceil((new Date(job.expiry_date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days left
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-zinc-600 text-sm line-clamp-2 mb-4">{job.description}</p>
                     <div className="flex items-center gap-4 text-sm text-zinc-500">
@@ -1367,17 +1670,77 @@ const VADashboard = ({ user }: { user: UserData }) => {
                 </div>
                 <div>
                   <h3 className="font-bold text-zinc-900">{user.name}</h3>
-                  <p className="text-xs text-zinc-500">Profile Strength: {profile?.bio ? '85%' : '45%'}</p>
+                  {profile?.headline && <p className="text-[10px] text-zinc-500 font-medium line-clamp-1">{profile.headline}</p>}
+                  <p className="text-xs text-zinc-500 mt-1">Profile Strength: {completeness}%</p>
                 </div>
               </div>
               <div className="w-full bg-zinc-100 h-2 rounded-full mb-6">
-                <div className={cn("bg-indigo-600 h-2 rounded-full", profile?.bio ? "w-[85%]" : "w-[45%]")} />
+                <div 
+                  className={cn(
+                    "h-2 rounded-full transition-all duration-1000",
+                    completeness < 40 ? "bg-red-500" : completeness < 80 ? "bg-amber-500" : "bg-emerald-500"
+                  )} 
+                  style={{ width: `${completeness}%` }}
+                />
               </div>
+              
+              {completeness < 100 && (
+                <div className="mb-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <h4 className="text-xs font-bold text-indigo-900 mb-2">Improve your profile:</h4>
+                  <ul className="text-[10px] text-indigo-700 space-y-1">
+                    {!profile?.headline && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> Add a professional headline</li>}
+                    {!profile?.bio && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> Write a compelling bio</li>}
+                    {(!profile?.skills || profile.skills.length === 0) && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> List your top skills</li>}
+                    {!profile?.portfolio_url && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> Add your portfolio link</li>}
+                    {!profile?.availability && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> Set your availability</li>}
+                    {!profile?.hourly_rate && <li className="flex items-center gap-1"><Plus className="w-3 h-3" /> Set your hourly rate</li>}
+                  </ul>
+                </div>
+              )}
+
+              {profile && (
+                <div className="space-y-4 border-t border-zinc-100 pt-6">
+                  <div>
+                    <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Profile Summary</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-zinc-500">Hourly Rate</span>
+                        <span className="font-bold text-zinc-900">${profile.hourly_rate}/hr</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-zinc-500">Availability</span>
+                        <span className="font-bold text-zinc-900 capitalize">{profile.availability || 'Not set'}</span>
+                      </div>
+                      {profile.portfolio_url && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-zinc-500">Portfolio</span>
+                          <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline flex items-center gap-1">
+                            Link <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {profile.skills && profile.skills.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-2">Top Skills</h4>
+                      <div className="flex flex-wrap gap-1">
+                        {profile.skills.slice(0, 5).map((s: any, i: number) => (
+                          <span key={i} className="bg-zinc-100 text-zinc-600 text-[10px] px-2 py-0.5 rounded-full">
+                            {s.skill_name}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button 
                 onClick={() => setActiveTab('profile')}
                 className="w-full border border-indigo-600 text-indigo-600 py-2 rounded-lg font-bold hover:bg-indigo-50 transition-all"
               >
-                {profile?.bio ? 'Update Profile' : 'Complete Profile'}
+                {completeness === 100 ? 'Update Profile' : 'Complete Profile'}
               </button>
             </div>
           </div>
@@ -1391,17 +1754,95 @@ const VADashboard = ({ user }: { user: UserData }) => {
       {activeTab === 'messages' && (
         <MessagesPage user={user} />
       )}
+
+      {activeTab === 'payment' && (
+        <VAPaymentEdit user={user} initialProfile={profile} onSave={fetchData} />
+      )}
+    </div>
+  );
+};
+
+const VAPaymentEdit = ({ user, initialProfile, onSave }: { user: UserData, initialProfile: any, onSave: () => void }) => {
+  const [paypalEmail, setPaypalEmail] = useState(initialProfile?.paypal_email || '');
+  const [wiseAccount, setWiseAccount] = useState(initialProfile?.wise_account || '');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const response = await fetch('/api/va/payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: user.id,
+          paypal_email: paypalEmail,
+          wise_account: wiseAccount,
+        })
+      });
+      if (response.ok) {
+        alert('Payment details saved successfully!');
+        onSave();
+      } else {
+        alert('Failed to save payment details.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error saving payment details.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-200 max-w-2xl mx-auto">
+      <h2 className="text-2xl font-bold text-zinc-900 mb-6">Payment Details</h2>
+      <p className="text-zinc-500 mb-8">Add your payment details so employers can pay you directly when you are hired.</p>
+      
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-bold text-zinc-700 mb-2">PayPal Email</label>
+          <input 
+            type="email" 
+            value={paypalEmail} 
+            onChange={e => setPaypalEmail(e.target.value)} 
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+            placeholder="e.g. your.email@paypal.com"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-bold text-zinc-700 mb-2">Wise Account Name / Email</label>
+          <input 
+            type="text" 
+            value={wiseAccount} 
+            onChange={e => setWiseAccount(e.target.value)} 
+            className="w-full px-4 py-3 rounded-xl border border-zinc-200 focus:ring-2 focus:ring-teal-500 outline-none transition-all"
+            placeholder="e.g. Your Name or email@wise.com"
+          />
+        </div>
+        
+        <button 
+          onClick={handleSave} 
+          disabled={saving}
+          className="w-full bg-teal-600 text-white font-bold py-4 rounded-xl hover:bg-teal-700 transition-colors shadow-lg shadow-teal-200"
+        >
+          {saving ? 'Saving...' : 'Save Payment Details'}
+        </button>
+      </div>
     </div>
   );
 };
 
 const VAProfileEdit = ({ user, initialProfile, onSave }: { user: UserData, initialProfile: any, onSave: () => void }) => {
+  const [firstName, setFirstName] = useState(initialProfile?.first_name || '');
+  const [lastName, setLastName] = useState(initialProfile?.last_name || '');
   const [headline, setHeadline] = useState(initialProfile?.headline || '');
   const [bio, setBio] = useState(initialProfile?.bio || '');
   const [hourlyRate, setHourlyRate] = useState(initialProfile?.hourly_rate || '');
   const [monthlySalary, setMonthlySalary] = useState(initialProfile?.monthly_salary || '');
   const [availability, setAvailability] = useState(initialProfile?.availability || '');
-  const [skills, setSkills] = useState<any[]>(initialProfile?.skills || []);
+  const [portfolioUrl, setPortfolioUrl] = useState(initialProfile?.portfolio_url || '');
+  const [skills, setSkills] = useState<any[]>(initialProfile?.detailed_skills || initialProfile?.skills || []);
   const [newSkill, setNewSkill] = useState('');
   const [newExp, setNewExp] = useState('1 - 2 years');
   const [saving, setSaving] = useState(false);
@@ -1421,23 +1862,31 @@ const VAProfileEdit = ({ user, initialProfile, onSave }: { user: UserData, initi
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('va_profiles')
-        .upsert({
-          id: user.id,
-          title: headline,
+        .from('profiles')
+        .update({
+          first_name: firstName,
+          last_name: lastName,
+          headline,
           bio,
           hourly_rate: Number(hourlyRate),
+          monthly_salary: Number(monthlySalary),
           availability,
-          skills: skills.map(s => `${s.skill_name} (${s.years_experience})`) // Simplified for now
-        });
+          portfolio_url: portfolioUrl,
+          detailed_skills: skills
+        })
+        .eq('id', user.id);
 
       if (error) throw error;
 
       onSave();
       alert('Profile updated successfully!');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error updating profile:', err);
-      alert('Failed to update profile');
+      if (err.message === 'Failed to fetch') {
+        alert('Network error. Please check if VITE_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_URL are correctly set in the environment.');
+      } else {
+        alert('Failed to update profile');
+      }
     } finally {
       setSaving(false);
     }
@@ -1448,6 +1897,28 @@ const VAProfileEdit = ({ user, initialProfile, onSave }: { user: UserData, initi
       <h2 className="text-2xl font-bold text-zinc-900 mb-8">Edit Your Professional Profile</h2>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-bold text-zinc-700 mb-2">First Name</label>
+            <input 
+              type="text" 
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="John"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-zinc-700 mb-2">Last Name</label>
+            <input 
+              type="text" 
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="Doe"
+              required
+            />
+          </div>
           <div className="md:col-span-2">
             <label className="block text-sm font-bold text-zinc-700 mb-2">Professional Headline</label>
             <input 
@@ -1479,6 +1950,16 @@ const VAProfileEdit = ({ user, initialProfile, onSave }: { user: UserData, initi
               className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500"
               placeholder="800"
               required
+            />
+          </div>
+          <div className="md:col-span-2">
+            <label className="block text-sm font-bold text-zinc-700 mb-2">Portfolio URL</label>
+            <input 
+              type="url" 
+              value={portfolioUrl}
+              onChange={(e) => setPortfolioUrl(e.target.value)}
+              className="w-full p-3 bg-zinc-50 border border-zinc-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500"
+              placeholder="https://behance.net/yourname"
             />
           </div>
           <div className="md:col-span-2">
@@ -1581,26 +2062,10 @@ const MessagesPage = ({ user }: { user: UserData }) => {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const { data, error } = await supabase
-        .from('messages')
-        .select(`
-          *,
-          sender:sender_id(full_name),
-          receiver:receiver_id(full_name)
-        `)
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      const formattedMessages = (data || []).map(m => ({
-        ...m,
-        sender_name: m.sender?.full_name || 'User',
-        receiver_name: m.receiver?.full_name || 'User',
-        message_body: m.content
-      }));
-
-      setMessages(formattedMessages);
+      const response = await fetch(`/api/messages/${user.id}`);
+      if (!response.ok) throw new Error('Failed to fetch messages');
+      const data = await response.json();
+      setMessages(data || []);
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
@@ -1608,17 +2073,9 @@ const MessagesPage = ({ user }: { user: UserData }) => {
 
   useEffect(() => {
     fetchMessages();
-    // Use Supabase Realtime for messages
-    const channel = supabase
-      .channel('messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-        fetchMessages();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    // Poll for new messages every 3 seconds to simulate real-time
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
   }, [fetchMessages]);
 
   const chats = Array.from(new Set(messages.map(m => m.sender_id === user.id ? m.receiver_id : m.sender_id)));
@@ -1628,15 +2085,18 @@ const MessagesPage = ({ user }: { user: UserData }) => {
     if (!activeChat || !newMessage) return;
     
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           sender_id: user.id,
           receiver_id: activeChat,
-          content: newMessage
-        });
+          message_body: newMessage
+        })
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Failed to send message');
+      
       setNewMessage('');
       fetchMessages();
     } catch (err) {
@@ -1726,12 +2186,17 @@ const PricingPage = ({ user }: { user?: UserData }) => {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annually'>('monthly');
   const [upgrading, setUpgrading] = useState(false);
 
-  const handleUpgrade = async (planName: string) => {
+  const handleUpgrade = async (planName: string, stripeLink?: string) => {
     if (!user) {
       alert('Please login to upgrade');
       return;
     }
     if (planName === 'FREE') return;
+    
+    if (stripeLink) {
+      window.location.href = stripeLink;
+      return;
+    }
     
     setUpgrading(true);
     try {
@@ -1776,6 +2241,8 @@ const PricingPage = ({ user }: { user?: UserData }) => {
     {
       name: 'PRO',
       price: '$29',
+      annualPrice: '$290',
+      stripeLink: 'https://buy.stripe.com/5kQ9AV9d1484ffB0NSfnO00',
       subtitle: 'Cancel anytime.',
       color: 'border-blue-500',
       headerBg: 'bg-blue-500',
@@ -1797,6 +2264,8 @@ const PricingPage = ({ user }: { user?: UserData }) => {
     {
       name: 'PREMIUM',
       price: '$39',
+      annualPrice: '$390',
+      stripeLink: 'https://buy.stripe.com/4gM8wR3SHaws4AX1RWfnO01',
       subtitle: 'Cancel anytime.',
       color: 'border-red-500',
       headerBg: 'bg-red-500',
@@ -1854,7 +2323,9 @@ const PricingPage = ({ user }: { user?: UserData }) => {
                   </div>
                 )}
                 <div className="flex items-center justify-center gap-1 mb-2">
-                  <span className="text-6xl font-black text-blue-600 tracking-tighter">{plan.price}</span>
+                  <span className="text-6xl font-black text-blue-600 tracking-tighter">
+                    {billingCycle === 'annually' && plan.annualPrice ? plan.annualPrice : plan.price}
+                  </span>
                   {plan.price !== 'FREE' && <span className="text-zinc-400 font-bold text-sm self-end mb-2">USD</span>}
                 </div>
                 {plan.price !== 'FREE' && (
@@ -1934,7 +2405,7 @@ const PricingPage = ({ user }: { user?: UserData }) => {
               <div className="px-8 pb-8">
                 <button 
                   disabled={upgrading || plan.price === 'FREE'}
-                  onClick={() => handleUpgrade(plan.name)}
+                  onClick={() => handleUpgrade(plan.name, plan.stripeLink)}
                   className={cn(
                     "w-full py-4 rounded-2xl font-black text-lg transition-all shadow-lg",
                     plan.price === 'FREE' ? "bg-zinc-100 text-zinc-400 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98] shadow-blue-200"
@@ -1960,39 +2431,166 @@ const PricingPage = ({ user }: { user?: UserData }) => {
   );
 };
 
+const TalentProfile = ({ user }: { user?: UserData }) => {
+  const { id } = useParams();
+  const [profile, setProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await fetch(`/api/va/profile/${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setProfile(data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, [id]);
+
+  if (loading) return <div className="p-8 text-center">Loading profile...</div>;
+  if (!profile) return <div className="p-8 text-center">Profile not found</div>;
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-12">
+      <div className="bg-white rounded-3xl shadow-sm border border-zinc-200 overflow-hidden">
+        <div className="p-8 border-b border-zinc-100 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="w-24 h-24 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center font-bold text-4xl border border-teal-100">
+              {profile.name?.charAt(0) || 'V'}
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-zinc-900 mb-2">{profile.name}</h1>
+              <p className="text-xl text-zinc-500 font-medium">{profile.headline}</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3 w-full md:w-auto">
+            {user?.role === 'employer' && (
+              <button 
+                onClick={() => alert('Hire request sent! (Mock implementation)')}
+                className="w-full md:w-auto px-8 py-3 bg-teal-600 text-white rounded-xl font-bold hover:bg-teal-700 transition-colors shadow-lg shadow-teal-200"
+              >
+                Hire {profile.name}
+              </button>
+            )}
+            <Link 
+              to={`/messages/${profile.user_id}`}
+              className="w-full md:w-auto px-8 py-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 transition-colors text-center"
+            >
+              Message
+            </Link>
+          </div>
+        </div>
+
+        <div className="p-8 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-8">
+            <section>
+              <h2 className="text-xl font-bold text-zinc-900 mb-4">About Me</h2>
+              <div className="prose prose-zinc max-w-none text-zinc-600">
+                {profile.bio || 'No bio provided.'}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-zinc-900 mb-4">Skills & Experience</h2>
+              <div className="flex flex-wrap gap-2">
+                {profile.skills?.map((skill: any, i: number) => (
+                  <div key={i} className="px-4 py-2 bg-zinc-50 border border-zinc-200 rounded-xl flex items-center gap-2">
+                    <span className="font-bold text-zinc-700">{skill.skill_name}</span>
+                    <span className="text-xs text-zinc-400 font-medium px-2 py-0.5 bg-white rounded-md border border-zinc-100">
+                      {skill.years_experience}
+                    </span>
+                  </div>
+                ))}
+                {(!profile.skills || profile.skills.length === 0) && (
+                  <p className="text-zinc-500">No skills listed.</p>
+                )}
+              </div>
+            </section>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-100 space-y-4">
+              <div>
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Hourly Rate</div>
+                <div className="text-2xl font-black text-zinc-900">${profile.hourly_rate || '0.00'}<span className="text-sm text-zinc-500 font-medium">/hr</span></div>
+              </div>
+              <div>
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Monthly Salary</div>
+                <div className="text-lg font-bold text-zinc-700">${profile.monthly_salary || '0.00'}</div>
+              </div>
+              <div>
+                <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Availability</div>
+                <div className="text-sm font-medium text-zinc-700">{profile.availability || 'Not specified'}</div>
+              </div>
+              {profile.portfolio_url && (
+                <div>
+                  <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1">Portfolio</div>
+                  <a href={profile.portfolio_url} target="_blank" rel="noreferrer" className="text-sm font-bold text-teal-600 hover:underline break-all">
+                    {profile.portfolio_url}
+                  </a>
+                </div>
+              )}
+              {user?.role === 'employer' && (profile.paypal_email || profile.wise_account) && (
+                <div className="pt-4 border-t border-zinc-200">
+                  <div className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2">Payment Details</div>
+                  {profile.paypal_email && (
+                    <div className="mb-2">
+                      <span className="text-xs text-zinc-500 block">PayPal:</span>
+                      <span className="text-sm font-medium text-zinc-900">{profile.paypal_email}</span>
+                    </div>
+                  )}
+                  {profile.wise_account && (
+                    <div>
+                      <span className="text-xs text-zinc-500 block">Wise:</span>
+                      <span className="text-sm font-medium text-zinc-900">{profile.wise_account}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+              <div className="flex items-center gap-3 mb-2">
+                <ShieldCheck className="w-6 h-6 text-emerald-600" />
+                <div className="text-lg font-black text-emerald-900">{profile.id_proof_score || 0} ID PROOF</div>
+              </div>
+              <p className="text-xs text-emerald-700 font-medium">This worker has completed identity verification.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const TalentSearchPage = () => {
   const [talents, setTalents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [salaryRange, setSalaryRange] = useState([2, 40]);
   const [idProofMin, setIdProofMin] = useState(40);
+  const location = useLocation();
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q');
+    if (q) setSearch(q);
     fetchTalents();
-  }, []);
+  }, [location.search]);
 
   const fetchTalents = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('va_profiles')
-        .select(`
-          *,
-          profiles (
-            full_name
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Map the data to match the expected format
-      const formattedTalents = (data || []).map(t => ({
-        ...t,
-        name: t.profiles?.full_name || 'VA User'
-      }));
-      
-      setTalents(formattedTalents);
+      const response = await fetch('/api/talents');
+      if (!response.ok) throw new Error('Failed to fetch talents');
+      const data = await response.json();
+      setTalents(data || []);
     } catch (err) {
       console.error('Error fetching talents:', err);
     } finally {
@@ -2098,7 +2696,7 @@ const TalentSearchPage = () => {
 
           <div className="bg-teal-50 p-6 rounded-3xl border border-teal-100">
             <p className="text-sm text-teal-800 font-medium italic mb-4">
-              Va Core Support
+              HIRE A VA
             </p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-teal-200 rounded-full" />
@@ -2178,7 +2776,7 @@ const TalentSearchPage = () => {
                         <div className="flex items-center gap-2">
                           <button className="px-4 py-2 text-xs font-bold text-zinc-400 uppercase tracking-wider hover:text-teal-600 transition-colors">PIN</button>
                           <Link to={`/messages/${talent.user_id}`} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors">message</Link>
-                          <button className="px-4 py-2 bg-teal-50 text-teal-600 rounded-xl text-xs font-bold hover:bg-teal-100 transition-colors">view profile</button>
+                          <Link to={`/talent/${talent.user_id}`} className="px-4 py-2 bg-teal-50 text-teal-600 rounded-xl text-xs font-bold hover:bg-teal-100 transition-colors">view profile</Link>
                         </div>
                       </div>
 
@@ -2255,10 +2853,14 @@ const JobsPage = ({ user }: { user: UserData | null }) => {
   const [loading, setLoading] = useState(true);
   const [applyingJob, setApplyingJob] = useState<any | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const q = params.get('q');
+    if (q) setSearch(q);
     fetchJobs();
-  }, []);
+  }, [location.search]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -2562,9 +3164,9 @@ export default function App() {
 
             const userData: UserData = {
               id: session.user.id,
-              name: profile?.full_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              name: (profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : null) || (session.user.user_metadata?.first_name ? `${session.user.user_metadata.first_name} ${session.user.user_metadata.last_name || ''}`.trim() : null) || session.user.email?.split('@')[0] || 'User',
               email: session.user.email || '',
-              role: (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'va',
+              role: (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'worker',
               status: profile?.status || 'approved'
             };
             setUser(userData);
@@ -2592,9 +3194,9 @@ export default function App() {
 
         const userData: UserData = {
           id: session.user.id,
-          name: profile?.full_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+          name: (profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}`.trim() : null) || (session.user.user_metadata?.first_name ? `${session.user.user_metadata.first_name} ${session.user.user_metadata.last_name || ''}`.trim() : null) || session.user.email?.split('@')[0] || 'User',
           email: session.user.email || '',
-          role: (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'va',
+          role: (profile?.role as UserRole) || (session.user.user_metadata?.role as UserRole) || 'worker',
           status: profile?.status || 'approved'
         };
         setUser(userData);
@@ -2623,7 +3225,7 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center bg-zinc-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-zinc-600 font-medium">Loading Va Core Support...</p>
+          <p className="text-zinc-600 font-medium">Loading HIRE A VA...</p>
         </div>
       </div>
     );
@@ -2642,14 +3244,17 @@ export default function App() {
               <Route path="/jobs" element={<JobsPage user={user} />} />
               <Route path="/jobs/:id" element={<JobDetailsPage user={user} />} />
               <Route path="/talents" element={<TalentSearchPage />} />
+              <Route path="/talent/:id" element={<TalentProfile user={user || undefined} />} />
               <Route path="/pricing" element={<PricingPage user={user || undefined} />} />
               <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />} />
               <Route path="/register" element={user ? <Navigate to="/" /> : <RegisterPage onLogin={handleLogin} />} />
+              <Route path="/about" element={<AboutUs />} />
+              <Route path="/admin-login" element={user?.role === 'admin' ? <Navigate to="/admin" /> : <AdminLogin onLogin={handleLogin} />} />
               
               {/* Protected Routes */}
               <Route path="/admin/*" element={user?.role === 'admin' ? <AdminLayout user={user} /> : <Navigate to="/login" />} />
               <Route path="/employer" element={user?.role === 'employer' ? <EmployerDashboard user={user} /> : <Navigate to="/login" />} />
-              <Route path="/va" element={user?.role === 'va' ? <VADashboard user={user} /> : <Navigate to="/login" />} />
+              <Route path="/va" element={user?.role === 'worker' ? <VADashboard user={user} /> : <Navigate to="/login" />} />
               <Route path="/messages/:chatId" element={user ? <div className="max-w-7xl mx-auto px-4 py-8"><MessagesPage user={user} /></div> : <Navigate to="/login" />} />
               
               {/* Fallback */}
@@ -2697,13 +3302,16 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <img 
                     src="https://static.wixstatic.com/media/225ce0_770c0e789f0348bda3ee004f32a8fb0c~mv2.png/v1/crop/x_244,y_190,w_518,h_479/fill/w_108,h_100,fp_0.50_0.50,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Untitled%20design.png" 
-                    alt="Va Core Support Logo" 
+                    alt="HIRE A VA Logo" 
                     className="w-6 h-6 object-contain"
                     referrerPolicy="no-referrer"
                   />
-                  <span className="font-bold text-zinc-900">Va Core Support</span>
+                  <span className="font-bold text-zinc-900">HIRE A VA</span>
                 </div>
-                <p className="text-sm text-zinc-400">© 2026 Va Core Support Marketplace. All rights reserved.</p>
+                <p className="text-sm text-zinc-400">
+                  <Link to="/admin-login" className="text-white cursor-default selection:bg-transparent">...</Link>
+                  © 2026 HIRE A VA Marketplace. All rights reserved.
+                </p>
               </div>
             </div>
           </footer>

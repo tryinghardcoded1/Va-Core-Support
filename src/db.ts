@@ -8,7 +8,7 @@ const db = new Database('vahub.db');
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
-    role TEXT CHECK(role IN ('admin', 'employer', 'va')) NOT NULL,
+    role TEXT CHECK(role IN ('admin', 'employer', 'worker')) NOT NULL,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
@@ -36,6 +36,8 @@ db.exec(`
     resume_url TEXT,
     profile_views INTEGER DEFAULT 0,
     is_featured BOOLEAN DEFAULT 0,
+    paypal_email TEXT,
+    wise_account TEXT,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
@@ -63,6 +65,7 @@ db.exec(`
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected', 'closed')),
     is_featured BOOLEAN DEFAULT 0,
     rejection_reason TEXT,
+    expiry_date DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (employer_id) REFERENCES users(id)
   );
@@ -178,6 +181,9 @@ try { db.exec("ALTER TABLE va_profiles ADD COLUMN last_active TEXT;"); } catch(e
 try { db.exec("ALTER TABLE va_profiles ADD COLUMN monthly_salary REAL;"); } catch(e) {}
 try { db.exec("ALTER TABLE va_profiles ADD COLUMN portfolio_url TEXT;"); } catch(e) {}
 try { db.exec("ALTER TABLE va_profiles ADD COLUMN skills TEXT;"); } catch(e) {}
+try { db.exec("ALTER TABLE va_profiles ADD COLUMN paypal_email TEXT;"); } catch(e) {}
+try { db.exec("ALTER TABLE va_profiles ADD COLUMN wise_account TEXT;"); } catch(e) {}
+try { db.exec("ALTER TABLE jobs ADD COLUMN expiry_date DATETIME;"); } catch(e) {}
 
 // Seed default plans if they don't exist
 const plansCount = db.prepare('SELECT count(*) as count FROM plans').get() as { count: number };
@@ -217,7 +223,7 @@ const vaDemoCount = db.prepare('SELECT count(*) as count FROM users WHERE email 
 if (vaDemoCount.count === 0) {
   const vaId = 'va-demo-1';
   db.prepare('INSERT INTO users (id, role, name, email, password, status) VALUES (?, ?, ?, ?, ?, ?)').run(
-    vaId, 'va', 'Demo VA', 'va@demo.com', 'vademo', 'approved'
+    vaId, 'worker', 'Demo VA', 'va@demo.com', 'vademo', 'approved'
   );
   db.prepare('INSERT INTO va_profiles (id, user_id, headline, bio, hourly_rate, monthly_salary, id_proof_score, education, last_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     'va-prof-demo', vaId, 'Expert Virtual Assistant', 'I am a demo VA profile with extensive experience in administrative tasks.', 15, 2400, 80, 'Bachelors degree', 'Today'
@@ -240,8 +246,8 @@ if (employerDemoCount.count === 0) {
 }
 
 // Seed provided VAs
-const vaProfilesCount = db.prepare('SELECT count(*) as count FROM users WHERE role = ?').get('va') as { count: number };
-if (vaProfilesCount.count <= 2) { // Only seed if empty or just the demo
+const vaProfilesCount = db.prepare('SELECT count(*) as count FROM users WHERE role = ?').get('worker') as { count: number };
+if (vaProfilesCount.count <= 12) { // Only seed if empty or just the demo
   const insertUser = db.prepare('INSERT INTO users (id, role, name, email, password, status) VALUES (?, ?, ?, ?, ?, ?)');
   const insertProfile = db.prepare(`
     INSERT INTO va_profiles (id, user_id, headline, bio, hourly_rate, monthly_salary, id_proof_score, education, last_active, availability)
@@ -316,6 +322,102 @@ if (vaProfilesCount.count <= 2) { // Only seed if empty or just the demo
       ]
     },
     {
+      name: 'Sarah',
+      headline: 'Expert Social Media Manager & Content Creator',
+      idProof: 85,
+      hourly: 8.50,
+      monthly: 1360,
+      education: 'Bachelors degree',
+      lastActive: 'Today',
+      bio: "Passionate about helping brands grow their online presence. I specialize in creating engaging content, managing communities, and running targeted ad campaigns on Facebook, Instagram, and TikTok.",
+      availability: 'full-time work (8 hours/day)',
+      skills: [
+        { name: 'Social Media Management', exp: '2 - 5 years' },
+        { name: 'Content Creation', exp: '2 - 5 years' },
+        { name: 'Facebook Ads', exp: '1 - 2 years' }
+      ]
+    },
+    {
+      name: 'Michael',
+      headline: 'Senior Customer Support Specialist',
+      idProof: 90,
+      hourly: 6.00,
+      monthly: 960,
+      education: 'Associate degree',
+      lastActive: 'Yesterday',
+      bio: "Dedicated customer service professional with over 5 years of experience handling inquiries via email, chat, and phone. I pride myself on resolving issues quickly and maintaining high customer satisfaction scores.",
+      availability: 'full-time work (8 hours/day)',
+      skills: [
+        { name: 'Customer Support', exp: '5+ years' },
+        { name: 'Zendesk', exp: '2 - 5 years' },
+        { name: 'Email Handling', exp: '5+ years' }
+      ]
+    },
+    {
+      name: 'Jessica',
+      headline: 'Virtual Executive Assistant & Project Manager',
+      idProof: 75,
+      hourly: 10.00,
+      monthly: 1600,
+      education: 'Bachelors degree',
+      lastActive: 'Today',
+      bio: "Highly organized and proactive Executive Assistant. I excel at calendar management, email triage, travel arrangements, and keeping projects on track using tools like Asana and Trello.",
+      availability: 'part-time work (4 hours/day)',
+      skills: [
+        { name: 'Executive Assistance', exp: '2 - 5 years' },
+        { name: 'Project Management', exp: '1 - 2 years' },
+        { name: 'Calendar Management', exp: '2 - 5 years' }
+      ]
+    },
+    {
+      name: 'David',
+      headline: 'Data Entry & Web Research Specialist',
+      idProof: 60,
+      hourly: 4.00,
+      monthly: 640,
+      education: 'High School Diploma',
+      lastActive: '2 days ago',
+      bio: "Detail-oriented data entry specialist with fast typing speed and high accuracy. Experienced in web research, lead generation, and managing large datasets in Excel and Google Sheets.",
+      availability: 'full-time work (8 hours/day)',
+      skills: [
+        { name: 'Data Entry', exp: '1 - 2 years' },
+        { name: 'Web Research', exp: '1 - 2 years' },
+        { name: 'Excel/Google Sheets', exp: '2 - 5 years' }
+      ]
+    },
+    {
+      name: 'Emily',
+      headline: 'Creative Graphic Designer & Illustrator',
+      idProof: 80,
+      hourly: 15.00,
+      monthly: 2400,
+      education: 'Bachelors degree',
+      lastActive: 'Today',
+      bio: "I transform ideas into visually stunning designs. Proficient in Adobe Creative Suite, I create logos, marketing materials, social media graphics, and custom illustrations that align with your brand identity.",
+      availability: 'part-time work (4 hours/day)',
+      skills: [
+        { name: 'Graphic Design', exp: '5+ years' },
+        { name: 'Adobe Illustrator', exp: '2 - 5 years' },
+        { name: 'Adobe Photoshop', exp: '5+ years' }
+      ]
+    },
+    {
+      name: 'Kevin',
+      headline: 'E-commerce Store Manager (Shopify/Amazon)',
+      idProof: 95,
+      hourly: 9.00,
+      monthly: 1440,
+      education: 'Bachelors degree',
+      lastActive: 'Today',
+      bio: "Experienced in managing Shopify and Amazon stores from end to end. I handle product listings, inventory management, order fulfillment, and customer inquiries to ensure smooth operations.",
+      availability: 'full-time work (8 hours/day)',
+      skills: [
+        { name: 'Shopify Management', exp: '2 - 5 years' },
+        { name: 'Amazon Seller Central', exp: '1 - 2 years' },
+        { name: 'Product Listing', exp: '2 - 5 years' }
+      ]
+    },
+    {
       name: 'Keito',
       headline: 'SEO Specialist|Web Developer|Technical VA',
       idProof: 80,
@@ -385,7 +487,7 @@ if (vaProfilesCount.count <= 2) { // Only seed if empty or just the demo
   for (const va of vas) {
     const userId = uuidv4();
     const email = `${va.name.toLowerCase().replace(/\s+/g, '')}@demo.com`;
-    insertUser.run(userId, 'va', va.name, email, 'demo', 'approved');
+    insertUser.run(userId, 'worker', va.name, email, 'demo', 'approved');
     insertProfile.run(uuidv4(), userId, va.headline, va.bio, va.hourly, va.monthly, va.idProof, va.education, va.lastActive, va.availability);
     for (const skill of va.skills) {
       insertSkill.run(uuidv4(), userId, skill.name, skill.exp);

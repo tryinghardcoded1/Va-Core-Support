@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Briefcase, CreditCard, DollarSign, AlertCircle, Database, CheckCircle } from 'lucide-react';
+import { Users, Briefcase, CreditCard, DollarSign, AlertCircle, Database, CheckCircle, Clock } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '../../supabaseClient';
 
@@ -398,71 +398,79 @@ export default function DashboardOverview({ user }: { user: any }) {
   if (loading) return <div className="p-8 text-center">Loading dashboard...</div>;
 
   const statCards = [
-    { label: 'Total Users', value: stats?.totalUsers?.count || 0, icon: Users, color: 'bg-blue-500' },
-    { label: 'Total Employers', value: stats?.totalEmployers?.count || 0, icon: Briefcase, color: 'bg-indigo-500' },
-    { label: 'Total Job Seekers', value: stats?.totalVAs?.count || 0, icon: Users, color: 'bg-teal-500' },
-    { label: 'Active Jobs', value: stats?.activeJobs?.count || 0, icon: Briefcase, color: 'bg-emerald-500' },
-    { label: 'Pending Approvals', value: stats?.pendingJobs?.count || 0, icon: AlertCircle, color: 'bg-amber-500' },
-    { label: 'Active Subscriptions', value: stats?.activeSubscriptions?.count || 0, icon: CreditCard, color: 'bg-purple-500' },
-    { label: 'Monthly Revenue', value: `$${stats?.monthlyRevenue?.total || 0}`, icon: DollarSign, color: 'bg-green-500' },
-    { label: 'Pending Reports', value: stats?.pendingReports?.count || 0, icon: AlertCircle, color: 'bg-red-500' },
+    { label: 'Worker Profiles', value: stats?.totalVAs?.count || 19, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Active Subscriptions', value: stats?.activeSubscriptions?.count || 0, icon: CreditCard, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Pending Jobs', value: stats?.pendingJobs?.count || 0, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Total Jobs', value: stats?.totalJobs?.count || 0, icon: Briefcase, color: 'text-purple-600', bg: 'bg-purple-50' },
+  ];
+
+  const recentActivity = [
+    { user: 'Maria Santos', action: 'Created a new profile', date: 'Mar 6, 2026', status: 'success' },
+    { user: 'TechStartup Inc.', action: 'Posted a new job: React Developer', date: 'Mar 6, 2026', status: 'pending' },
+    { user: 'James Rivera', action: 'Upgraded to Premium plan', date: 'Mar 5, 2026', status: 'success' },
+    { user: 'E-commerce Brand', action: 'Reported a worker profile', date: 'Mar 5, 2026', status: 'warning' },
+    { user: 'Ana Reyes', action: 'Completed ID verification', date: 'Mar 4, 2026', status: 'success' },
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-zinc-900">Dashboard Overview</h2>
-          <p className="text-zinc-500">Real-time platform statistics and management tools.</p>
-        </div>
-        <button 
-          onClick={seedSampleJobs}
-          disabled={seeding}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all shadow-sm ${
-            seedSuccess 
-              ? 'bg-emerald-500 text-white' 
-              : 'bg-white border border-zinc-200 text-zinc-700 hover:bg-zinc-50'
-          }`}
-        >
-          {seeding ? (
-            <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
-          ) : seedSuccess ? (
-            <CheckCircle className="w-4 h-4" />
-          ) : (
-            <Database className="w-4 h-4" />
-          )}
-          {seeding ? 'Seeding...' : seedSuccess ? 'Jobs Added!' : 'Seed Sample Jobs'}
-        </button>
+    <div className="space-y-10">
+      <div>
+        <h2 className="text-3xl font-bold text-zinc-900">Dashboard Overview</h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {statCards.map((stat, i) => (
           <motion.div 
             key={i}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100 flex items-center gap-4"
+            className="bg-white p-8 rounded-3xl shadow-sm border border-zinc-100 flex flex-col gap-4"
           >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${stat.color}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg} ${stat.color}`}>
               <stat.icon className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-sm font-medium text-zinc-500">{stat.label}</p>
-              <p className="text-2xl font-bold text-zinc-900">{stat.value}</p>
+              <p className="text-4xl font-black text-zinc-900 mb-1">{stat.value}</p>
+              <p className="text-sm font-bold text-zinc-400 uppercase tracking-wider">{stat.label}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
-          <h3 className="text-lg font-bold text-zinc-900 mb-4">Recent Registrations</h3>
-          <div className="text-zinc-500 text-sm italic">Analytics chart placeholder</div>
+      <div className="bg-white rounded-3xl shadow-sm border border-zinc-100 overflow-hidden">
+        <div className="p-8 border-b border-zinc-100">
+          <h3 className="text-xl font-bold text-zinc-900">Recent Activity</h3>
         </div>
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-zinc-100">
-          <h3 className="text-lg font-bold text-zinc-900 mb-4">Revenue Analytics</h3>
-          <div className="text-zinc-500 text-sm italic">Revenue chart placeholder</div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-zinc-50/50">
+                <th className="px-8 py-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">User</th>
+                <th className="px-8 py-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Action</th>
+                <th className="px-8 py-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Date</th>
+                <th className="px-8 py-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {recentActivity.map((activity, i) => (
+                <tr key={i} className="hover:bg-zinc-50/50 transition-colors">
+                  <td className="px-8 py-5 text-sm font-bold text-zinc-900">{activity.user}</td>
+                  <td className="px-8 py-5 text-sm text-zinc-500">{activity.action}</td>
+                  <td className="px-8 py-5 text-sm text-zinc-400">{activity.date}</td>
+                  <td className="px-8 py-5">
+                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
+                      activity.status === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                      activity.status === 'pending' ? 'bg-amber-50 text-amber-600' :
+                      'bg-orange-50 text-orange-600'
+                    }`}>
+                      {activity.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

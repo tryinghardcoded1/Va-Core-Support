@@ -118,13 +118,65 @@ async function startServer() {
   });
 
   app.post("/api/jobs", (req, res) => {
-    const { employer_id, title, description, salary_min, salary_max, job_type, experience_level } = req.body;
+    const { employer_id, title, description, salary_min, salary_max, job_type, experience_level, expiry_date } = req.body;
     const id = uuidv4();
     db.prepare(`
-      INSERT INTO jobs (id, employer_id, title, description, salary_min, salary_max, job_type, experience_level)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, employer_id, title, description, salary_min, salary_max, job_type, experience_level);
+      INSERT INTO jobs (id, employer_id, title, description, salary_min, salary_max, job_type, experience_level, expiry_date)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, employer_id, title, description, salary_min, salary_max, job_type, experience_level, expiry_date);
     res.json({ id });
+  });
+
+  // Employer Dashboard Routes
+  app.get("/api/employer/jobs/:employerId", (req, res) => {
+    const jobs = db.prepare(`
+      SELECT jobs.*, 
+        (SELECT count(*) FROM applications WHERE job_id = jobs.id) as application_count
+      FROM jobs 
+      WHERE employer_id = ?
+      ORDER BY created_at DESC
+    `).all(req.params.employerId);
+    res.json(jobs);
+  });
+
+  app.get("/api/employer/applications/:employerId", (req, res) => {
+    const applications = db.prepare(`
+      SELECT applications.*, users.name as va_name, users.email as va_email, jobs.title as job_title
+      FROM applications
+      JOIN users ON applications.va_id = users.id
+      JOIN jobs ON applications.job_id = jobs.id
+      WHERE jobs.employer_id = ?
+      ORDER BY applications.created_at DESC
+    `).all(req.params.employerId);
+    res.json(applications);
+  });
+
+  app.get("/api/employer/profile/:userId", (req, res) => {
+    const profile = db.prepare(`
+      SELECT employer_profiles.*, users.name, users.email 
+      FROM employer_profiles 
+      JOIN users ON employer_profiles.user_id = users.id
+      WHERE employer_profiles.user_id = ?
+    `).get(req.params.userId);
+    res.json(profile);
+  });
+  
+  app.post("/api/employer/profile", (req, res) => {
+    const { id, company_name, website, industry, company_description, logo_url } = req.body;
+    try {
+      db.prepare(`
+        UPDATE employer_profiles 
+        SET company_name = ?, website = ?, industry = ?, company_description = ?, logo_url = ?
+        WHERE user_id = ?
+      `).run(company_name, website, industry, company_description, logo_url, id);
+      
+      // Also update user name if needed
+      db.prepare("UPDATE users SET name = ? WHERE id = ?").run(company_name, id);
+      
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
   });
 
   // Admin
@@ -371,13 +423,13 @@ async function startServer() {
   });
 
   app.post("/api/va/profile", (req, res) => {
-    const { user_id, headline, bio, hourly_rate, monthly_salary, availability, skills } = req.body;
+    const { user_id, headline, bio, hourly_rate, monthly_salary, availability, portfolio_url, skills, paypal_email, wise_account } = req.body;
     
     db.prepare(`
       UPDATE va_profiles 
-      SET headline = ?, bio = ?, hourly_rate = ?, monthly_salary = ?, availability = ?
+      SET headline = ?, bio = ?, hourly_rate = ?, monthly_salary = ?, availability = ?, portfolio_url = ?, paypal_email = ?, wise_account = ?
       WHERE user_id = ?
-    `).run(headline, bio, hourly_rate, monthly_salary, availability, user_id);
+    `).run(headline, bio, hourly_rate, monthly_salary, availability, portfolio_url, paypal_email, wise_account, user_id);
 
     // Update skills
     db.prepare("DELETE FROM va_skills WHERE va_id = ?").run(user_id);
@@ -385,6 +437,18 @@ async function startServer() {
       db.prepare("INSERT INTO va_skills (id, va_id, skill_name, years_experience) VALUES (?, ?, ?, ?)")
         .run(uuidv4(), user_id, skill.skill_name, skill.years_experience);
     }
+
+    res.json({ success: true });
+  });
+
+  app.post("/api/va/payment", (req, res) => {
+    const { user_id, paypal_email, wise_account } = req.body;
+    
+    db.prepare(`
+      UPDATE va_profiles 
+      SET paypal_email = ?, wise_account = ?
+      WHERE user_id = ?
+    `).run(paypal_email, wise_account, user_id);
 
     res.json({ success: true });
   });
