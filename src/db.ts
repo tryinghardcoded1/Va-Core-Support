@@ -495,6 +495,109 @@ if (vaProfilesCount.count <= 12) { // Only seed if empty or just the demo
   }
 }
 
+// Seed requested specific VAs
+const specificVAs = [
+  {
+    name: 'Johannah Abeguel Atis Canoy',
+    email: 'jaacanoy@gmail.com',
+    headline: 'Dedicated Virtual Assistant & Data Entry Specialist',
+    bio: 'I am a detail-oriented Virtual Assistant with a strong background in data entry, email management, and administrative support. I am highly organized and dedicated to helping businesses streamline their operations.',
+    hourly: 5.00, monthly: 800, idProof: 85, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Data Entry', exp: '2 - 5 years' }, { name: 'Email Management', exp: '1 - 2 years' }, { name: 'Admin Support', exp: '2 - 5 years' }]
+  },
+  {
+    name: 'Jackelyn Linay',
+    email: 'jackelyn.linay@gmail.com',
+    headline: 'Customer Support Representative & E-commerce VA',
+    bio: 'Experienced Customer Support Representative specializing in e-commerce platforms like Shopify and Amazon. I handle customer inquiries, order processing, and ensure high customer satisfaction.',
+    hourly: 6.00, monthly: 960, idProof: 90, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Customer Support', exp: '2 - 5 years' }, { name: 'Shopify', exp: '1 - 2 years' }, { name: 'Order Processing', exp: '2 - 5 years' }]
+  },
+  {
+    name: 'Jasmine Kyle A. Lazarte',
+    email: 'jasminelazarte@gmail.com',
+    headline: 'Social Media Manager & Content Creator',
+    bio: 'Creative Social Media Manager with a passion for building brand awareness. I excel in creating engaging content, scheduling posts, and analyzing social media metrics to drive growth.',
+    hourly: 7.00, monthly: 1120, idProof: 80, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Social Media Management', exp: '2 - 5 years' }, { name: 'Content Creation', exp: '1 - 2 years' }, { name: 'Canva', exp: '2 - 5 years' }]
+  },
+  {
+    name: 'Andrea Leana Ladrido',
+    email: 'jejmnn@gmail.com',
+    headline: 'Executive Assistant & Project Coordinator',
+    bio: 'Proactive Executive Assistant experienced in calendar management, travel arrangements, and project coordination. I thrive in fast-paced environments and ensure executives stay organized and focused.',
+    hourly: 8.00, monthly: 1280, idProof: 95, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Executive Assistance', exp: '5+ years' }, { name: 'Calendar Management', exp: '2 - 5 years' }, { name: 'Project Coordination', exp: '2 - 5 years' }]
+  },
+  {
+    name: 'Jessielyn Rimas',
+    email: 'jesamir28@gmail.com',
+    headline: 'Lead Generation Specialist & Researcher',
+    bio: 'Skilled Lead Generation Specialist with a knack for finding high-quality prospects. I am proficient in web research, data scraping, and building targeted lead lists for sales teams.',
+    hourly: 6.50, monthly: 1040, idProof: 75, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Lead Generation', exp: '2 - 5 years' }, { name: 'Web Research', exp: '2 - 5 years' }, { name: 'Data Scraping', exp: '1 - 2 years' }]
+  },
+  {
+    name: 'Jessa Fernandez',
+    email: 'jesscnza@gmail.com',
+    headline: 'Real Estate Virtual Assistant',
+    bio: 'Dedicated Real Estate Virtual Assistant experienced in property management, CRM updates, and transaction coordination. I help real estate professionals manage their day-to-day tasks efficiently.',
+    hourly: 7.50, monthly: 1200, idProof: 85, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Real Estate Admin', exp: '2 - 5 years' }, { name: 'CRM Management', exp: '2 - 5 years' }, { name: 'Transaction Coordination', exp: '1 - 2 years' }]
+  },
+  {
+    name: 'Jisfir Cepriano',
+    email: 'jisfircepriano18@gmail.com',
+    headline: 'Graphic Designer & Video Editor',
+    bio: 'Creative Graphic Designer and Video Editor with a keen eye for detail. I create visually appealing graphics for social media and edit engaging videos for YouTube and TikTok.',
+    hourly: 9.00, monthly: 1440, idProof: 80, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Graphic Design', exp: '2 - 5 years' }, { name: 'Video Editing', exp: '2 - 5 years' }, { name: 'Adobe Premiere Pro', exp: '1 - 2 years' }]
+  },
+  {
+    name: 'Janne Mae Untalan',
+    email: 'jmauntalan@gmail.com',
+    headline: 'Bookkeeper & Financial Admin',
+    bio: 'Detail-oriented Bookkeeper proficient in QuickBooks and Xero. I manage accounts payable/receivable, bank reconciliations, and ensure accurate financial records for small businesses.',
+    hourly: 10.00, monthly: 1600, idProof: 90, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'Bookkeeping', exp: '5+ years' }, { name: 'QuickBooks', exp: '2 - 5 years' }, { name: 'Xero', exp: '2 - 5 years' }]
+  },
+  {
+    name: 'jonaneth capellan',
+    email: 'jonanethcapellan@gmail.com',
+    headline: 'SEO Specialist & Content Writer',
+    bio: 'Results-driven SEO Specialist and Content Writer. I optimize website content to rank higher on search engines and write compelling blog posts that engage readers and drive traffic.',
+    hourly: 8.50, monthly: 1360, idProof: 85, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'SEO', exp: '2 - 5 years' }, { name: 'Content Writing', exp: '2 - 5 years' }, { name: 'Keyword Research', exp: '1 - 2 years' }]
+  },
+  {
+    name: 'Joselyn Cuchon',
+    email: 'joselyn.cuchon.vaph@gmail.com',
+    headline: 'General Virtual Assistant',
+    bio: 'Versatile General Virtual Assistant capable of handling a wide range of administrative tasks. From email management to scheduling and basic graphic design, I am here to support your business needs.',
+    hourly: 5.50, monthly: 880, idProof: 70, education: 'Bachelors degree', lastActive: 'Today', availability: 'full-time work (8 hours/day)',
+    skills: [{ name: 'General Admin', exp: '1 - 2 years' }, { name: 'Email Management', exp: '1 - 2 years' }, { name: 'Scheduling', exp: '1 - 2 years' }]
+  }
+];
+
+const insertUser = db.prepare('INSERT INTO users (id, role, name, email, password, status) VALUES (?, ?, ?, ?, ?, ?)');
+const insertProfile = db.prepare(`
+  INSERT INTO va_profiles (id, user_id, headline, bio, hourly_rate, monthly_salary, id_proof_score, education, last_active, availability)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const insertSkill = db.prepare('INSERT INTO va_skills (id, va_id, skill_name, years_experience) VALUES (?, ?, ?, ?)');
+
+for (const va of specificVAs) {
+  const existingUser = db.prepare('SELECT id FROM users WHERE email = ?').get(va.email) as any;
+  if (!existingUser) {
+    const userId = uuidv4();
+    insertUser.run(userId, 'worker', va.name, va.email, 'password123', 'approved');
+    insertProfile.run(uuidv4(), userId, va.headline, va.bio, va.hourly, va.monthly, va.idProof, va.education, va.lastActive, va.availability);
+    for (const skill of va.skills) {
+      insertSkill.run(uuidv4(), userId, skill.name, skill.exp);
+    }
+  }
+}
+
 // Seed sample jobs
 const sampleJobsCount = db.prepare('SELECT count(*) as count FROM jobs').get() as { count: number };
 if (sampleJobsCount.count <= 1) { // Only seed if empty or just the one from previous test

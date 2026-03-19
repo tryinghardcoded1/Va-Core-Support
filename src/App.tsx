@@ -460,6 +460,7 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6">
             <Link to="/about" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">About</Link>
+            <Link to="/talents" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Talents</Link>
             <Link to="/jobs" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Find Jobs</Link>
             <Link to="/real-reviews" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Real Reviews</Link>
             <Link to="/pricing" className="text-sm font-medium text-zinc-600 hover:text-teal-600 transition-colors">Pricing</Link>
@@ -508,6 +509,7 @@ const Navbar = ({ user, onLogout }: { user: UserData | null; onLogout: () => voi
             className="md:hidden bg-white border-b border-zinc-200 px-4 pt-2 pb-6 space-y-1"
           >
             <Link to="/about" className="block px-3 py-2 text-base font-medium text-zinc-600">About</Link>
+            <Link to="/talents" className="block px-3 py-2 text-base font-medium text-zinc-600">Talents</Link>
             <Link to="/jobs" className="block px-3 py-2 text-base font-medium text-zinc-600">Find Jobs</Link>
             <Link to="/real-reviews" className="block px-3 py-2 text-base font-medium text-zinc-600">Real Reviews</Link>
             <Link to="/pricing" className="block px-3 py-2 text-base font-medium text-zinc-600">Pricing</Link>
