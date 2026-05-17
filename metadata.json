@@ -1,5 +1,8 @@
 {
-  "name": "Vacoresupport",
+  "name": "Hire a VA",
   "description": "A premium, centralized job marketplace connecting top Virtual Assistants with global employers, featuring robust admin control and subscription-based monetization.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

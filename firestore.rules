@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitive Helpers
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\\\-]+$'); 
+    }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+    
+    // The super admin user email logic. In reality this could be checking an admins collection.
+    // For demo purposes, we can allow explicit admin role check if the user doc was provisioned.
+    // However, during document creation, this doesn't exist yet for the caller.
+    function isAdmin() { 
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'SUPER_ADMIN']; 
+    }
+
+    // Users Collection
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'name', 'email', 'status', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             data.createdAt is number && data.updatedAt is number;
+    }
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn() 
+                    && isValidId(userId)
+                    && request.auth.uid == userId
+                    && isValidUser(incoming())
+                    && incoming().userId == userId
+                    && incoming().createdAt == request.time.toMillis()
+                    && incoming().updatedAt == request.time.toMillis();
+      allow update: if isSignedIn()
+                    && isValidUser(incoming())
+                    && (
+                      (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'updatedAt', 'password']) && incoming().updatedAt == request.time.toMillis() && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt && incoming().role == existing().role)
+                      ||
+                      isAdmin()
+                    );
+    }
+
+    // VA Profiles
+    function isValidVaProfile(data) {
+      return data.keys().hasAll(['userId', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId.size() <= 128;
+    }
+    match /va_profiles/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidId(userId)
+                    && request.auth.uid == userId
+                    && isValidVaProfile(incoming())
+                    && incoming().userId == userId
+                    && incoming().createdAt == request.time.toMillis()
+                    && incoming().updatedAt == request.time.toMillis();
+      allow update: if isSignedIn()
+                    && (
+                      (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasAny(['bio', 'headline', 'skills', 'updatedAt', 'paypal_email', 'wise_account']) && incoming().updatedAt == request.time.toMillis() && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt)
+                      ||
+                      isAdmin()
+                    );
+    }
+
+    // Employer Profiles
+    function isValidEmployerProfile(data) {
+      return data.keys().hasAll(['userId', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId.size() <= 128;
+    }
+    match /employer_profiles/{userId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && isValidId(userId)
+                    && request.auth.uid == userId
+                    && isValidEmployerProfile(incoming())
+                    && incoming().userId == userId
+                    && incoming().createdAt == request.time.toMillis()
+                    && incoming().updatedAt == request.time.toMillis();
+      allow update: if isSignedIn()
+                    && (
+                      (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasAny(['company_name', 'company_description', 'logo_url', 'website', 'industry', 'updatedAt']) && incoming().updatedAt == request.time.toMillis() && incoming().userId == existing().userId && incoming().createdAt == existing().createdAt)
+                      ||
+                      isAdmin()
+                    );
+    }
+
+    // Jobs Collection
+    function isValidJob(data) {
+       return data.keys().hasAll(['jobId', 'employerId', 'title', 'status', 'createdAt', 'updatedAt']) &&
+              data.jobId is string && data.jobId.size() <= 128 &&
+              data.employerId is string && data.employerId.size() <= 128 &&
+              data.title is string && data.title.size() <= 200 &&
+              data.status in ['pending', 'approved', 'rejected'] &&
+              data.createdAt is number && data.updatedAt is number;
+    }
+    match /jobs/{jobId} {
+      allow read: if true;
+      allow create: if isSignedIn() 
+                    && isValidId(jobId)
+                    && incoming().employerId == request.auth.uid
+                    && isValidJob(incoming())
+                    && incoming().jobId == jobId
+                    && incoming().status == 'approved' // Set to approved currently in logic
+                    && incoming().createdAt == request.time.toMillis()
+                    && incoming().updatedAt == request.time.toMillis();
+      allow update: if isSignedIn()
+                    && isValidJob(incoming())
+                    && (
+                      (request.auth.uid == existing().employerId && incoming().diff(existing()).affectedKeys().hasAny(['title', 'description', 'updatedAt', 'deletedAt']) && incoming().updatedAt == request.time.toMillis() && incoming().employerId == existing().employerId && incoming().createdAt == existing().createdAt)
+                      ||
+                      isAdmin()
+                    );
+    }
+
+    // Applications Collection
+    function isValidApplication(data) {
+       return data.keys().hasAll(['applicationId', 'jobId', 'vaId', 'status', 'createdAt', 'updatedAt']) &&
+              data.applicationId is string && data.applicationId.size() <= 128 &&
+              data.jobId is string && data.jobId.size() <= 128 &&
+              data.vaId is string && data.vaId.size() <= 128 &&
+              data.status in ['applied', 'shortlisted', 'hired', 'rejected'] &&
+              data.createdAt is number && data.updatedAt is number;
+    }
+    match /applications/{applicationId} {
+      allow read: if true;
+      allow create: if isSignedIn() 
+                    && isValidId(applicationId)
+                    && request.auth.uid == incoming().vaId
+                    && isValidApplication(incoming())
+                    && exists(/databases/$(database)/documents/jobs/$(incoming().jobId)) // relational sync
+                    && incoming().applicationId == applicationId
+                    && incoming().createdAt == request.time.toMillis()
+                    && incoming().updatedAt == request.time.toMillis();
+      allow update: if isSignedIn()
+                    && isValidApplication(incoming())
+                    && (
+                      (exists(/databases/$(database)/documents/jobs/$(existing().jobId)) && get(/databases/$(database)/documents/jobs/$(existing().jobId)).data.employerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']) && incoming().updatedAt == request.time.toMillis() && incoming().vaId == existing().vaId && incoming().jobId == existing().jobId && incoming().createdAt == existing().createdAt)
+                      ||
+                      isAdmin()
+                    );
+    }
+
+    // Messages Collection
+    function isValidMessage(data) {
+       return data.keys().hasAll(['messageId', 'senderId', 'receiverId', 'message_body', 'createdAt']) &&
+              data.messageId is string && data.messageId.size() <= 128 &&
+              data.senderId is string && data.senderId.size() <= 128 &&
+              data.receiverId is string && data.receiverId.size() <= 128 &&
+              data.message_body is string && data.message_body.size() <= 2000 &&
+              data.createdAt is number;
+    }
+    match /messages/{messageId} {
+      allow read: if true;
+      allow create: if isSignedIn() 
+                    && isValidId(messageId)
+                    && request.auth.uid == incoming().senderId
+                    && isValidMessage(incoming())
+                    && incoming().messageId == messageId
+                    && incoming().createdAt == request.time.toMillis();
+    }
+
+    // Admin Logs (Immutable)
+    match /admin_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                    && isValidId(logId)
+                    && incoming().keys().hasAll(['admin_id', 'action_type', 'created_at'])
+                    && incoming().admin_id == request.auth.uid;
+      allow update, delete: if false; // immutable
+    }
+
+  }
+}

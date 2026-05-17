@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account containing core authentication info and role.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "organizationId": { "type": "string", "description": "Associated organization ID if multi-tenant" },
+        "role": { "type": "string", "enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "USER", "CUSTOMER", "worker", "employer"] },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "suspended"] },
+        "subscription_status": { "type": "string" },
+        "email_verified": { "type": "boolean" },
+        "createdAt": { "type": "number", "description": "Server timestamp" },
+        "updatedAt": { "type": "number", "description": "Server timestamp" },
+        "deletedAt": { "type": "number", "description": "Server timestamp for soft deletes" }
+      },
+      "required": ["userId", "role", "name", "email"]
+    },
+    "VAProfile": {
+      "title": "VA Profile",
+      "description": "Virtual Assistant public profile details.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "headline": { "type": "string" },
+        "bio": { "type": "string" },
+        "hourly_rate": { "type": "number" },
+        "monthly_salary": { "type": "number" },
+        "availability": { "type": "string" },
+        "portfolio_url": { "type": "string" },
+        "experience_years": { "type": "number" },
+        "skills": { 
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "skill_name": { "type": "string" },
+              "years_experience": { "type": "string" }
+            }
+          }
+        },
+        "id_proof_score": { "type": "number" },
+        "education": { "type": "string" },
+        "is_featured": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "deletedAt": { "type": "number" }
+      },
+      "required": ["userId"]
+    },
+    "EmployerProfile": {
+      "title": "Employer Profile",
+      "description": "Company details for employers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "company_name": { "type": "string" },
+        "company_description": { "type": "string" },
+        "website": { "type": "string" },
+        "industry": { "type": "string" },
+        "logo_url": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "deletedAt": { "type": "number" }
+      },
+      "required": ["userId", "company_name"]
+    },
+    "Job": {
+      "title": "Job Posting",
+      "description": "Job openings created by employers.",
+      "type": "object",
+      "properties": {
+        "jobId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "salary_min": { "type": "number" },
+        "salary_max": { "type": "number" },
+        "job_type": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "closed"] },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "deletedAt": { "type": "number" }
+      },
+      "required": ["jobId", "employerId", "title", "description", "status"]
+    },
+    "Application": {
+      "title": "Job Application",
+      "description": "An application submitted by a VA for a job.",
+      "type": "object",
+      "properties": {
+        "applicationId": { "type": "string" },
+        "jobId": { "type": "string" },
+        "vaId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "cover_letter": { "type": "string" },
+        "status": { "type": "string", "enum": ["applied", "shortlisted", "rejected", "hired"] },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "deletedAt": { "type": "number" }
+      },
+      "required": ["applicationId", "jobId", "vaId", "employerId", "status"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Direct message between users.",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "message_body": { "type": "string" },
+        "is_flagged": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "deletedAt": { "type": "number" }
+      },
+      "required": ["messageId", "senderId", "receiverId", "message_body"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Core user document."
+    },
+    "/va_profiles/{userId}": {
+      "schema": { "$ref": "#/entities/VAProfile" },
+      "description": "VA-specific profile data, linked by userId."
+    },
+    "/employer_profiles/{userId}": {
+      "schema": { "$ref": "#/entities/EmployerProfile" },
+      "description": "Employer-specific profile data, linked by userId."
+    },
+    "/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/Job" },
+      "description": "Global collection for jobs, allowing cross-employer queries."
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/Application" },
+      "description": "Global collection for applications."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Global collection for direct messages."
+    }
+  }
+}

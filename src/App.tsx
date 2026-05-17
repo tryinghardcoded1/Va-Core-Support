@@ -26,7 +26,8 @@ import {
   Star,
   Check,
   ExternalLink,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -664,29 +665,12 @@ const LandingPage = ({ user }: { user: UserData | null }) => {
       {/* About Us Section */}
       <section className="py-20 bg-zinc-50 border-y border-zinc-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-3xl font-black text-zinc-900 mb-6 tracking-tight">About HIRE A VA</h2>
-              <div className="prose prose-lg text-zinc-600">
-                <p className="mb-4">
-                  Originally founded as <strong>VA CORE SUPPORT</strong> by <strong>Joshua Bernstein</strong> from San Francisco, our mission has always been to connect incredible talent with businesses that need them.
-                </p>
-                <p>
-                  We believe in empowering entrepreneurs and business owners by providing top-tier virtual assistants who can handle the day-to-day operations, allowing you to focus on what truly matters: growing your business.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="aspect-[9/16] w-full max-w-sm bg-zinc-100 rounded-2xl overflow-hidden shadow-xl border border-zinc-200 relative">
-                <iframe 
-                  className="absolute inset-0 w-full h-full"
-                  src="https://www.youtube.com/embed/NK7wBwqqZto" 
-                  title="YouTube video player" 
-                  frameBorder="0" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
-                  allowFullScreen
-                ></iframe>
-              </div>
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl font-black text-zinc-900 mb-6 tracking-tight">About HIRE A VA</h2>
+            <div className="prose prose-lg text-zinc-600 mx-auto">
+              <p>
+                We believe in empowering entrepreneurs and business owners by providing top-tier virtual assistants who can handle the day-to-day operations, allowing you to focus on what truly matters: growing your business.
+              </p>
             </div>
           </div>
         </div>
@@ -1147,6 +1131,28 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
   const [salaryMax, setSalaryMax] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
 
+  // AI Matching States
+  const [activeAiJob, setActiveAiJob] = useState<any>(null);
+  const [aiCandidates, setAiCandidates] = useState<any[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const fetchAiMatches = async (job: any) => {
+    setActiveAiJob(job);
+    setAiLoading(true);
+    setAiCandidates([]);
+    try {
+      const res = await fetch(`/api/ai/match-candidates/${job.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAiCandidates(data);
+      }
+    } catch (err) {
+      console.error("Error fetching AI Matches:", err);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -1330,6 +1336,12 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => fetchAiMatches(job)}
+                          className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3" /> Find Matches
+                        </button>
                         <span className={cn(
                           "text-[10px] font-bold uppercase px-2 py-1 rounded",
                           job.status === 'approved' ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
@@ -1525,6 +1537,80 @@ const EmployerDashboard = ({ user }: { user: UserData }) => {
       </div>
 
       <AnimatePresence>
+        {activeAiJob && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 overflow-y-auto pt-20">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setActiveAiJob(null)} className="absolute inset-0 bg-black/40 backdrop-blur-sm fixed" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white/90 backdrop-blur-lg w-full max-w-4xl rounded-3xl shadow-2xl relative z-10 overflow-hidden my-8">
+              <div className="p-6 border-b border-indigo-100 flex items-center justify-between sticky top-0 bg-white z-20">
+                <div>
+                  <h2 className="text-2xl font-bold text-zinc-900 flex items-center gap-2">
+                     <Sparkles className="text-indigo-600 w-6 h-6" />
+                     AI Candidate Matches
+                  </h2>
+                  <p className="text-zinc-500 text-sm mt-1">For Job: <span className="font-bold text-zinc-700">{activeAiJob.title}</span></p>
+                </div>
+                <button onClick={() => setActiveAiJob(null)} className="p-2 text-zinc-400 hover:text-zinc-900 bg-zinc-50 rounded-full hover:bg-zinc-100 transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 max-h-[80vh] overflow-y-auto">
+                {aiLoading ? (
+                  <div className="py-20 text-center flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50/50 to-purple-50/50 rounded-2xl border border-indigo-100">
+                    <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p className="text-indigo-900 font-bold text-lg">Analyzing talent pool...</p>
+                    <p className="text-indigo-600/70 text-sm mt-2">Our AI is scoring candidates based on your job requirements.</p>
+                  </div>
+                ) : aiCandidates.length === 0 ? (
+                  <div className="py-20 text-center text-zinc-500 bg-zinc-50 rounded-2xl border border-zinc-100">
+                    No strong matches found at the moment.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {aiCandidates.map(match => (
+                      <div key={match.va_id} className="relative p-6 rounded-2xl border flex flex-col md:flex-row gap-6 items-start bg-gradient-to-r from-white to-indigo-50/30 border-indigo-100 shadow-sm hover:shadow-md transition-all group overflow-hidden">
+                         <div className="absolute top-0 right-0 bg-indigo-600 text-white font-bold px-4 py-1.5 rounded-bl-xl shadow-sm z-10 flex items-center gap-1.5">
+                           <Sparkles className="w-3.5 h-3.5" />
+                           {match.match_score}% Match
+                         </div>
+                         <div className="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xl shrink-0 mt-2">
+                           {match.candidate?.name?.charAt(0).toUpperCase()}
+                         </div>
+                         <div className="flex-1 pr-16 md:pr-24">
+                            <h3 className="text-lg font-bold text-zinc-900">{match.candidate?.name}</h3>
+                            <p className="text-sm font-medium text-zinc-600 mb-3">{match.candidate?.headline}</p>
+                            
+                            <div className="bg-indigo-50/70 border border-indigo-100/50 p-4 rounded-xl mb-4 flex gap-3 shadow-inner">
+                              <Sparkles className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                              <p className="text-sm text-indigo-900 leading-relaxed italic pr-2">"{match.reasoning}"</p>
+                            </div>
+                            
+                            {match.candidate?.skills && match.candidate.skills.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {match.candidate.skills.slice(0, 5).map((skill: string, idx: number) => (
+                                  <span key={idx} className="bg-zinc-100 border border-zinc-200 text-zinc-700 text-[11px] font-bold px-2 py-1 rounded">
+                                    {skill}
+                                  </span>
+                                ))}
+                                {match.candidate.skills.length > 5 && (
+                                  <span className="text-xs text-zinc-400 font-medium self-center ml-1">+{match.candidate.skills.length - 5} more</span>
+                                )}
+                              </div>
+                            )}
+                         </div>
+                         <div className="w-full md:w-auto shrink-0 self-center">
+                            <a href={`mailto:${match.candidate?.email}`} className="w-full text-center bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-zinc-800 transition-colors block shadow-md">
+                              Contact VA
+                            </a>
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {showPostModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowPostModal(false)} className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
@@ -1570,7 +1656,9 @@ const VADashboard = ({ user }: { user: UserData }) => {
   const [jobs, setJobs] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'jobs' | 'profile' | 'messages' | 'payment'>('jobs');
+  const [activeTab, setActiveTab] = useState<'jobs' | 'ai-matches' | 'profile' | 'messages' | 'payment'>('jobs');
+  const [aiMatches, setAiMatches] = useState<any[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -1601,6 +1689,26 @@ const VADashboard = ({ user }: { user: UserData }) => {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    if (activeTab === 'ai-matches' && aiMatches.length === 0) {
+      const fetchAiMatches = async () => {
+        setAiLoading(true);
+        try {
+          const res = await fetch(`/api/ai/match-jobs/${user.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            setAiMatches(data);
+          }
+        } catch (err) {
+          console.error("Error fetching AI Matches:", err);
+        } finally {
+          setAiLoading(false);
+        }
+      };
+      fetchAiMatches();
+    }
+  }, [activeTab, user.id, aiMatches.length]);
+
   const calculateCompleteness = (prof: any) => {
     if (!prof) return 0;
     let score = 0;
@@ -1620,12 +1728,18 @@ const VADashboard = ({ user }: { user: UserData }) => {
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <h1 className="text-3xl font-bold text-zinc-900">Welcome, {user.name}</h1>
-        <div className="flex bg-white p-1 rounded-xl border border-zinc-200">
+        <div className="flex bg-white p-1 rounded-xl border border-zinc-200 overflow-x-auto whitespace-nowrap">
           <button 
             onClick={() => setActiveTab('jobs')}
             className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all", activeTab === 'jobs' ? "bg-teal-600 text-white" : "text-zinc-500 hover:text-zinc-900")}
           >
             Find Jobs
+          </button>
+          <button 
+            onClick={() => setActiveTab('ai-matches')}
+            className={cn("px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-1", activeTab === 'ai-matches' ? "bg-indigo-600 text-white" : "text-indigo-600 hover:bg-indigo-50")}
+          >
+            <Sparkles className="w-4 h-4" /> AI Matches
           </button>
           <button 
             onClick={() => setActiveTab('profile')}
@@ -1648,6 +1762,70 @@ const VADashboard = ({ user }: { user: UserData }) => {
         </div>
       </div>
       
+      {activeTab === 'ai-matches' && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="md:col-span-2 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-zinc-900 flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-indigo-600" />
+                AI Job Matches
+              </h2>
+            </div>
+            
+            <div className="space-y-4">
+              {aiLoading ? (
+                <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-12 text-center rounded-2xl border border-indigo-100 flex flex-col items-center justify-center">
+                   <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+                   <p className="text-indigo-900 font-bold">Our AI is analyzing your profile and matching you with jobs...</p>
+                </div>
+              ) : aiMatches.length === 0 ? (
+                <div className="bg-white p-12 text-center rounded-2xl border border-zinc-200 text-zinc-500">
+                  No matches found. Complete your profile with more skills!
+                </div>
+              ) : (
+                aiMatches.map((match: any) => (
+                  <div key={match.job_id} className="bg-gradient-to-r from-white to-indigo-50/30 p-6 rounded-2xl border border-indigo-100 shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">
+                      {match.match_score}% Match
+                    </div>
+                    <div className="flex justify-between items-start mb-4 pr-16">
+                      <div>
+                        <h3 className="text-lg font-bold text-zinc-900 group-hover:text-indigo-600 transition-colors">{match.job.title}</h3>
+                        <p className="text-sm text-zinc-500 font-medium">{match.job.company_name}</p>
+                      </div>
+                    </div>
+                    <div className="bg-indigo-50/50 rounded-lg p-4 mb-4 border border-indigo-100 flex gap-3 items-start">
+                      <Sparkles className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+                      <p className="text-sm text-indigo-900 font-medium">"{match.reasoning}"</p>
+                    </div>
+                    <p className="text-zinc-600 text-sm line-clamp-2 mb-4">{match.job.description}</p>
+                    <div className="flex items-center gap-4 text-sm text-zinc-500">
+                      <div className="flex items-center gap-1"><DollarSign className="w-4 h-4" /> ${match.job.salary_min} - ${match.job.salary_max}/mo</div>
+                      <div className="flex items-center gap-1"><Clock className="w-4 h-4" /> {match.job.job_type}</div>
+                    </div>
+                    <div className="mt-6 flex gap-3">
+                      <Link to={`/jobs/${match.job.id}`} className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 transition-all text-center">View & Apply</Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-zinc-200 shadow-sm">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-16 h-16 rounded-full bg-zinc-100 border-2 border-white shadow-md overflow-hidden relative">
+                  <div className="absolute inset-0 flex items-center justify-center text-zinc-400 text-2xl font-bold">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'jobs' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="md:col-span-2 space-y-6">
